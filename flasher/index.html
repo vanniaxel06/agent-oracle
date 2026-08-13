@@ -41,6 +41,23 @@
     </p>
   </div>
 
+  <h2 id="failed">If it says "Failed to initialize"</h2>
+  <p>Common, and not a broken board. The flasher resets the ESP32 into download
+     mode over the USB-serial chip, and the CH340 on these boards doesn't always
+     take it first go.</p>
+  <ol>
+    <li><strong>Just press Install again.</strong> It often works on the second
+        attempt.</li>
+    <li><strong>Hold the BOOT button</strong> (small button on the back, near the
+        USB ports) while clicking Install, and let go once it starts writing.</li>
+    <li>Make sure nothing else holds the port — a serial monitor, Arduino IDE, or
+        a PlatformIO upload in another window.</li>
+    <li>Use a <strong>data</strong> USB cable. A charge-only cable powers the
+        screen fine, so the board looks alive while no port ever appears.</li>
+  </ol>
+  <p class="dim">Still stuck? <code>pio run -t upload</code> from the repo always
+     works, and never needs the BOOT button.</p>
+
   <h2>After it flashes</h2>
   <p>The board has no idea what it is yet. It raises its own wifi network called
      <code>AgentStatus-Setup-XXXX</code> — join it and you'll get a setup page
