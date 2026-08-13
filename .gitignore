@@ -2,4 +2,6 @@
 .vscode/
 src/config.h
 *.bin
+# ...except the merged browser-flashable image, which is the artifact
+!flasher/*.bin
 .release.env
