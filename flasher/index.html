@@ -31,6 +31,19 @@
   <p class="sub">Physical status displays for agents and automated systems.
      <a href="https://github.com/vanniaxel06/agent-oracle">Source on GitHub</a></p>
 
+  <div class="note">
+    <p style="margin:.4rem 0"><strong>Read this first — browser flashing does not
+    work on every board.</strong> It needs the USB-serial chip to pull IO0 low
+    while resetting. On the board this was tested with, that fails: it resets but
+    boots the app instead of the bootloader, and the install stops at
+    <em>"Failed to initialize"</em>.</p>
+    <p style="margin:.4rem 0">If your board has a <strong>BOOT button</strong>,
+    hold it while clicking Install and it should work. <strong>If it has no BOOT
+    button, use PlatformIO instead</strong> — <code>pio run -t upload</code> from
+    the repo works reliably on the same board and cable, because esptool's reset
+    timing succeeds where the browser's does not.</p>
+  </div>
+
   <div class="cta">
     <p><strong>Plug an ESP32-2432S028R in over USB and press the button.</strong></p>
     <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
@@ -42,9 +55,11 @@
   </div>
 
   <h2 id="failed">If it says "Failed to initialize"</h2>
-  <p>Common, and not a broken board. The flasher resets the ESP32 into download
-     mode over the USB-serial chip, and the CH340 on these boards doesn't always
-     take it first go.</p>
+  <p>The board is almost certainly fine. Entering download mode needs two things
+     at once: RTS pulses the reset line, and DTR must hold IO0 low <em>across</em>
+     that reset. If the board visibly reboots but the install still fails, RTS is
+     working and DTR is not — the chip resets straight back into its application
+     instead of the bootloader.</p>
   <ol>
     <li><strong>Just press Install again.</strong> It often works on the second
         attempt.</li>
