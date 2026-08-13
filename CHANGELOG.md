@@ -2,6 +2,12 @@
 
 Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 
+## Unreleased
+
+- Removed the browser flasher. ESP Web Tools could not enter download mode on
+  this board via its CH340, even with BOOT held through the reset. See
+  docs/decisions.md for what was ruled out.
+
 ## 0.4.1
 
 - Display DMA buffer raised from 8KB to 16KB. A row of text was seen once with

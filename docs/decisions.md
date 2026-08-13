@@ -210,6 +210,35 @@ Refresh them deliberately, and diff before committing.
 
 ---
 
+## Browser flashing does not work on this board **(learned the hard way)**
+
+Built and then removed. ESP Web Tools (esptool-js) could not put an
+ESP32-2432S028R into download mode over its CH340, so the install stopped at
+*"Failed to initialize"* every time.
+
+What was ruled out, in order:
+
+- **Not the board, cable or port.** `esptool.py` connected to the same board on
+  the same cable seconds after each failure and read the chip ID.
+- **Not a missing BOOT button.** These boards have two buttons — RST on the
+  right, BOOT on the left. Holding BOOT and tapping RST demonstrably enters
+  download mode: `esptool --before no_reset` connected to a board already sitting
+  in the bootloader.
+- **Not user error on the hold.** Holding BOOT continuously through the click,
+  the port selection and the connect phase failed the same way.
+
+Entering download mode needs RTS to pulse the reset line while DTR holds IO0 low
+*across* that reset. The board visibly resets, so RTS works; DTR does not. Since
+most CYD boards use a CH340, this is likely broken for most people who would want
+it rather than being specific to one machine.
+
+**Use PlatformIO.** `pio run -t upload` works reliably on the same hardware,
+because esptool's reset timing succeeds where the browser's does not.
+
+The flasher page and merged image were deleted rather than shipped with a
+warning. A page whose main control fails on the hardware the project targets is
+worse than no page; the finding is worth more than the button.
+
 ## Known limitations
 
 Honest list, so nobody discovers these the hard way twice.
