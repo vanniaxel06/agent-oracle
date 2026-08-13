@@ -1,0 +1,58 @@
+// Copy to src/config.h and fill in. src/config.h is gitignored — the device key
+// is a credential (it is the only thing standing between the internet and this
+// agent's status feed).
+#pragma once
+
+// ── Server ────────────────────────────────────────────────────────────────────
+// Host only, no scheme and no trailing slash.
+//
+// TLS is verified against the root pinned in include/root_ca.h (ISRG Root X1,
+// i.e. Let's Encrypt). If your server uses a certificate from a different CA,
+// replace that header or the handshake will fail.
+// NOTE: from firmware 0.4.0 this is only a FALLBACK. The host is entered in the
+// setup portal and stored in NVS, so a published binary can be pointed at any
+// server without rebuilding. This value is used only when NVS is empty.
+#define STATUS_HOST "status.example.com"
+
+// NOTE: the device key is NOT set here. It lives in NVS and is entered through
+// the setup portal, because every unit downloads the same OTA binary — a key
+// compiled in here travels with that binary and overwrites the identity of every
+// unit that updates. Get the key from:
+//   cd server && node add-device.js "Desk - Vega" vega
+
+// ── Provisioning ──────────────────────────────────────────────────────────────
+// When there is no saved WiFi, the device raises this open AP and serves a
+// captive portal for the client to pick their network. Clients change router
+// passwords; this is how they re-provision without you driving out.
+#define WIFI_AP_NAME "AgentStatus-Setup"
+// 10 minutes. At 5 the unit rebooted while someone was still typing their
+// wifi password into the portal, which reads as the device being broken.
+#define WIFI_PORTAL_TIMEOUT_S 600
+
+// ── Timing ────────────────────────────────────────────────────────────────────
+#define POLL_INTERVAL_MS 30000
+
+// Hold the screen this long to reopen the setup portal and change the wifi or the
+// device key. Long enough that a wall unit being brushed or wiped can't trigger
+// it, short enough to do standing at the wall.
+#define REKEY_HOLD_MS 5000
+
+// How long the device may go without a SUCCESSFUL poll before it stops showing
+// the last payload and declares itself OFFLINE. This is the device-side half of
+// the staleness rule and is separate from the server's per-agent window: the
+// server cannot tell you it is unreachable. Two minutes, per the design brief.
+#define OFFLINE_AFTER_MS 120000
+
+// ── OTA ───────────────────────────────────────────────────────────────────────
+// The device fetches /firmware/manifest-<BOARD_NAME>.json — one manifest PER
+// BOARD REVISION, not one shared manifest. The revisions ship different display
+// controllers, so a shared manifest could hand ST7789 firmware to an ILI9341
+// unit and leave an unreadable screen that only a physical reflash fixes.
+// BOARD_NAME comes from platformio.ini, so a wrong-board update can't happen.
+//
+// Manifest is JSON: {"version":"0.2.0","url":"https://host/firmware/x.bin"}
+// Checked on boot and then every OTA_CHECK_INTERVAL_MS. Set OTA_ENABLED to 0 to
+// build a unit that will never self-update.
+#define OTA_ENABLED 1
+#define OTA_MANIFEST_PREFIX "/firmware/manifest-"
+#define OTA_CHECK_INTERVAL_MS 3600000UL

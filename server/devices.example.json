@@ -1,0 +1,24 @@
+{
+  "_comment": "Copy to devices.json. One entry per physical screen. Editing this file changes what a screen shows on its next 30s poll, with no firmware involvement.",
+  "devices": [
+    {
+      "key": "0123456789abcdef0123456789abcdef",
+      "title": "BUILDS",
+      "agent": "ci",
+      "stale_after_s": 900,
+      "lines": [
+        ["Branch", "branch"],
+        ["Last run", "last_run"],
+        ["Failures", "failures"],
+        ["Queue", "queue"],
+        ["Failing", "failing_job", true]
+      ]
+    }
+  ],
+  "_notes": {
+    "key": "32 hex chars. This is the only credential the screen has, so generate it randomly: node -e \"console.log(require('crypto').randomBytes(16).toString('hex'))\"",
+    "stale_after_s": "How old a beat may be before the screen goes red. Match your agent's cadence: an always-on process might be 120, something on a 4-hourly cron needs 16200 or it reads red permanently.",
+    "lines": "[label, field] or [label, field, true] for optional. Optional lines vanish when the field is absent instead of showing --. Five lines fit on a 240x320 panel.",
+    "rule": "Every line must be actionable. Cut anything that makes you feel something but do nothing - uptime percentage and running totals are the usual offenders."
+  }
+}
