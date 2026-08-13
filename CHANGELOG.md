@@ -2,6 +2,13 @@
 
 Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 
+## 0.4.1
+
+- Display DMA buffer raised from 8KB to 16KB. A row of text was seen once with
+  its bottom clipped after a value changed length, which fits narrow flush strips
+  leaving part of the old area unredrawn. 16KB halves the number of strips and
+  still leaves TLS around 48KB, comfortably above the ~45KB it needs.
+
 ## 0.4.0
 
 - Server host moved to NVS and entered in the setup portal. Nothing
