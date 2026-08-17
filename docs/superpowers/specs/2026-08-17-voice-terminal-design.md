@@ -82,6 +82,7 @@ a firmware port because Xiaozhi has no board target for it. Parked, not lost.
 | 5 | Destructive intents re-authenticate per action, by nonce challenge | Replay of a recording cannot approve an action |
 | 6 | No Xiaozhi | See "Firmware" |
 | 7 | Hardware is the ESP32-S3 already ordered | No new parts are required for the design to be interesting |
+| 8 | Gated intents are read back on screen and confirmed by touch | Touch settles *what*; the voice challenge settles *who*. They are not alternatives |
 
 ### On decision 3
 
@@ -117,6 +118,49 @@ nothing dispatches.
 A recording cannot answer a challenge it has never heard. This reuses the two
 models already in the design and adds no new dependency. It costs a few seconds
 on actions taken rarely.
+
+### On decision 8
+
+Touch and the voice challenge answer different questions, and conflating them
+loses one of the answers.
+
+**Touch answers "did you mean that".** The screen shows the parsed intent back
+before anything runs, and a touch commits it. This is the affordance speech
+otherwise lacks entirely: typing gives you the command on screen before you
+press enter, and speech gives you nothing. Given that the likeliest failure of
+this whole device is acting confidently on a misheard command, a readback is
+worth more than any security control in this document.
+
+**Touch cannot answer "is it you".** A touch proves physical presence, which is
+the same thing the device token already proves and the same reason `decisions.md`
+rules that token out as a basis for approvals. Anyone standing at the desk can
+touch the screen.
+
+So they layer rather than compete:
+
+| Question | Mechanism | Applies to |
+|---|---|---|
+| Did it hear me right | readback on screen | every gated intent |
+| Do I mean it | touch | every gated intent |
+| Is it me | nonce voice challenge | the destructive set only |
+
+What this **replaces** is v0.1's spoken confirmation. Saying "confirm" was the
+worst available option: it is slow, it can itself be misheard, and it adds
+nothing on identity that the original utterance did not already provide. Touch
+is strictly better at the job that step was actually doing.
+
+**The calibration constraint is real and shapes the UI.** `decisions.md` records
+that resistive touch on the wall units is uncalibrated, and that the whole screen
+is deliberately one hit target to sidestep it. A confirm button next to a cancel
+button is the single worst place for an uncalibrated panel to be off by a
+centimetre.
+
+So confirmation must not depend on *where* the screen is touched. Use hold
+length, which is already house style for exactly this reason: any tap cancels, a
+deliberate hold confirms, with the footer counting the hold down from partway
+through so a silent wait does not read as a dead screen. Thumbs up and thumbs
+down as separate targets are the natural design and should be resisted until a
+capacitive panel is confirmed.
 
 ## Relationship to the existing firmware
 
@@ -214,14 +258,24 @@ the queue is for.
 
 ### The screen
 
-The display stays a state renderer, not a transcript. Five states, colour-led,
-per the existing house rule that a wall unit is diagnosed by colour:
+The display is a state renderer, not a transcript. Five states, colour-led, per
+the existing house rule that a unit is diagnosed by colour:
 
 `idle` · `listening` · `thinking` · `awaiting approval` · `spoke`
 
-Rationale: a transcript invites reading, and reading is the thing this device
-exists to avoid. The screen answers "is it doing something and did it hear me",
-which speech alone cannot convey during the pause.
+A transcript invites reading, and reading is the thing this device exists to
+avoid. The screen answers "is it doing something and did it hear me", which
+speech alone cannot convey during the pause.
+
+**One exception, and it is the important one.** In `awaiting approval` the
+screen shows the parsed intent, not the transcript: `CLOSE STELLAR`, in the
+largest type that fits. That is a readback of what the server understood, which
+is a different and far more useful thing than what the microphone captured. It
+is the last point at which a misheard command can be caught, so it gets the
+whole screen.
+
+Touch is live only in that state. Everywhere else the panel is output only,
+which keeps the "one action, no menu" rule from `decisions.md` intact.
 
 ## Audio input and range
 
@@ -307,6 +361,11 @@ Carried deliberately. Each can change the plan.
   operating point, not the headline EER.
 - **The exact S3 board's microphone and audio-out path.** Confirm against the
   schematic for the board actually ordered before writing the capture code.
+- **Whether that board has a touch panel, and whether it is resistive or
+  capacitive.** Decision 8 depends on touch existing at all, and the hold-to-
+  confirm interaction exists to survive an uncalibrated resistive panel. A
+  capacitive panel would allow separate confirm and cancel targets and is worth
+  knowing before the approval UI is built.
 - **Wake mechanism.** Wake word, button, or always-listening with a local VAD.
   Each has a different privacy story, which matters more for the accountant than
   for the coder.
