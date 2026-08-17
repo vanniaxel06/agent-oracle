@@ -13,6 +13,12 @@
 # ONE MANIFEST PER BOARD REVISION. The revisions ship different display
 # controllers; a shared manifest could hand ST7789 firmware to an ILI9341 unit
 # and leave an unreadable screen that only a physical reflash fixes.
+#
+# The manifest carries a sha256 of the binary. TLS proves you reached the right
+# host; it says nothing about whether the bytes on that host are the ones that
+# were built. Builds are NOT byte-reproducible - the toolchain embeds paths and
+# timestamps - so a version string does not identify a binary, and without a hash
+# there is no way to confirm what a deployed unit is actually running.
 
 set -euo pipefail
 
@@ -63,6 +69,9 @@ if ssh "$VPS" "test -f ${REMOTE_DIR}/${BIN_NAME}"; then
   exit 1
 fi
 
+SHA=$(sha256sum "$LOCAL_BIN" | cut -d" " -f1)
+echo "→ sha256 ${SHA}"
+
 echo "→ uploading ${BIN_NAME} ($(du -h "$LOCAL_BIN" | cut -f1))"
 ssh "$VPS" "mkdir -p ${REMOTE_DIR}"
 scp -q "$LOCAL_BIN" "${VPS}:${REMOTE_DIR}/${BIN_NAME}"
@@ -75,7 +84,7 @@ else
   echo "→ publishing manifest-${ENV_NAME}.json"
 fi
 ssh "$VPS" "cat > ${REMOTE_DIR}/.manifest-${ENV_NAME}.tmp <<'JSON'
-{\"version\":\"${VERSION}\",\"url\":\"${HOST_URL}/firmware/${BIN_NAME}\"${DOWNGRADE_FIELD}}
+{\"version\":\"${VERSION}\",\"url\":\"${HOST_URL}/firmware/${BIN_NAME}\",\"sha256\":\"${SHA}\"${DOWNGRADE_FIELD}}
 JSON
 mv ${REMOTE_DIR}/.manifest-${ENV_NAME}.tmp ${REMOTE_DIR}/manifest-${ENV_NAME}.json
 chmod 644 ${REMOTE_DIR}/manifest-${ENV_NAME}.json ${REMOTE_DIR}/${BIN_NAME}"
