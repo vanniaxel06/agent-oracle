@@ -3,3 +3,8 @@
 src/config.h
 *.bin
 .release.env
+
+# voice/ runtime artefacts — captured speech and its triage state are data, not source
+node_modules/
+voice/misses.jsonl*
+voice/grammar.json.bak
