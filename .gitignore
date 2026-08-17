@@ -8,3 +8,5 @@ src/config.h
 node_modules/
 voice/misses.jsonl*
 voice/grammar.json.bak
+voice/verify/wav/
+voice/verify/*.onnx

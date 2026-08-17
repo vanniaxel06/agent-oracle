@@ -325,6 +325,68 @@ a misheard command with confidence. Speech has no equivalent of seeing the
 command you typed before pressing enter, so gating is not only a security
 control here, it is the undo button.
 
+## Speaker verification, measured
+
+Tested 2026-08-17. Harness in [`../../../voice/verify/`](../../../voice/verify/).
+
+**The stack stays Node-only. This is settled.** WeSpeaker's
+`voxceleb_resnet34_LM.onnx` (26MB, ungated on Hugging Face) runs under
+`onnxruntime-node` at about 31ms per utterance on the dev laptop, input
+`feats [B,T,80]`, output `embs [B,256]`. No Python, no torch, nothing new on the
+server beyond a model file and 261MB of `node_modules`.
+
+Kaldi-compatible filterbank features were implemented in plain JavaScript and
+are confirmed correct, which was the real risk: wrong features degrade
+embeddings silently rather than failing, so a bug here would have looked like
+"speaker verification doesn't work well enough" instead of "the features are
+wrong". Same-speaker long clips score 0.908 to 0.920 cosine, which is only
+reachable with correct features.
+
+### The finding that changes the design
+
+Scores split sharply by **utterance duration**, and the enrolment scheme
+originally specified here is the one configuration that fails.
+
+| Comparison | Same speaker | Different speaker | Margin |
+|---|---|---|---|
+| long vs long (6s) | 0.908 to 0.920 | 0.165 to 0.343 | **+0.565** |
+| short vs short (1.7s) | 0.672 to 0.800 | 0.318 to 0.571 | **+0.101** |
+| long vs short | 0.295 to 0.601 | 0.016 to 0.297 | **-0.002, overlaps** |
+
+Enrolling on comfortable multi-second speech and then verifying against a
+1.7-second nonce response is *long vs short*, and it does not separate at all.
+No threshold exists that accepts the right person and rejects everyone else.
+
+**Rule: enrol at the duration you will verify at.** If the challenge response is
+around two seconds, enrolment must be many short utterances, not a few long
+ones. Then the operating regime is short vs short, which separates.
+
+This also means enrolment should capture the user reading actual challenge-style
+phrases rather than a paragraph, which is a better experience anyway. Nobody
+wants to read a paragraph to a puck.
+
+### What this does not establish
+
+The margins above are not evidence of production accuracy, and reading them that
+way would be a mistake.
+
+- **The voices were synthetic**, three Windows SAPI speakers. The model was
+  trained on VoxCeleb, which is real human speech from interviews, so synthetic
+  audio is off-distribution in an unknown direction.
+- **Same-speaker variation is unrealistically small.** Text-to-speech is
+  deterministic, so two clips from one synthetic voice are far more alike than
+  the same human on two different days, tired, or with a cold. Real same-speaker
+  scores will be *lower* than these. This is the caveat that matters most,
+  because it makes the numbers optimistic rather than conservative.
+- **Three speakers, single digit sample counts.** A margin computed from three
+  same-speaker pairs is an indication, not a measurement.
+- **Clean audio, no room, no microphone.** Nothing here has passed through a
+  MEMS capsule at arm's length in a room with a fan.
+
+The honest next measurement needs the real board, the real microphone, and
+several recordings of one real person taken on different days. Until then,
+treat "Node-only is viable" as proven and every accuracy number as provisional.
+
 ## Firmware
 
 Xiaozhi is rejected on two independent grounds.
@@ -351,14 +413,11 @@ The firmware to write instead is small:
 
 Carried deliberately. Each can change the plan.
 
-- **The speaker embedding runtime.** An ONNX export of ECAPA-TDNN under
-  `onnxruntime-node` would keep the stack Node-only. Failing that, verification
-  means Python and torch on a server already running Hermes, the agents and
-  nginx. Verify before anything depends on it.
 - **Verification accuracy in a real room.** Published equal-error rates are
   clean-data and near-field. A MEMS microphone at arm's length in an office is a
   different problem, and the number that matters is the false-accept rate at the
-  operating point, not the headline EER.
+  operating point, not the headline EER. See "Speaker verification, measured"
+  for what has and has not been established.
 - **The exact S3 board's microphone and audio-out path.** Confirm against the
   schematic for the board actually ordered before writing the capture code.
 - **Whether that board has a touch panel, and whether it is resistive or
@@ -401,14 +460,14 @@ None of these block the build. All of them block calling it a product.
 
 ## Order of work
 
-1. Land the six Voice Link files into the repo and fix the `confirmations`
-   landmine below
-2. Verify the speaker embedding under `onnxruntime-node`, two-speaker test,
-   before anything else depends on it
+1. ~~Land the six Voice Link files into the repo~~ done. Fix the
+   `confirmations` landmine below, which is still open
+2. ~~Verify the speaker embedding under `onnxruntime-node`~~ done, see
+   "Speaker verification, measured"
 3. Free-form fallthrough to Hermes, and the conversation-versus-failed-command
    split, against `sim.js`
 4. Nonce challenge end to end, still against `sim.js`
-5. Enrollment capture, whichever surface wins
+5. Enrolment capture, at challenge duration rather than paragraph duration
 6. Firmware on the S3 when it arrives, display first then audio, per the
    bring-up order `decisions.md` already recommends
 7. Enclosure
