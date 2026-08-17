@@ -4,6 +4,12 @@ import { Plus, X, Check, Download, Shield, ShieldOff, RotateCcw, Wifi, WifiOff, 
 const SEED = {
   version: "0.1",
   min_score: 0.75,
+  // Required whenever any intent is gated. Without these the server has nothing
+  // to match an approval turn against, so gated intents can never be confirmed.
+  confirmations: {
+    confirm: ["yes", "confirm", "do it", "go ahead", "approved"],
+    cancel: ["no", "cancel", "stop", "abort", "never mind"],
+  },
   slots: {
     agent: {
       hermes: ["hermes", "her mess", "air mess"],
@@ -111,6 +117,7 @@ export default function GrammarStudio() {
   const [pick, setPick] = useState({});
   const [busy, setBusy] = useState(false);
   const [probe, setProbe] = useState("");
+  const [pushErr, setPushErr] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -128,7 +135,16 @@ export default function GrammarStudio() {
       ...opts,
       headers: { "content-type": "application/json", ...(conn.token ? { authorization: `Bearer ${conn.token}` } : {}) },
     });
-    if (!r.ok) throw new Error(`${r.status}`);
+    if (!r.ok) {
+      // Carry the server's reason up. A bare status code turns a rejected
+      // grammar into an unexplained failure the UI used to swallow entirely.
+      let detail = "";
+      try {
+        const j = await r.json();
+        detail = j.problems?.join("; ") || j.detail || j.error || "";
+      } catch { /* no JSON body */ }
+      throw new Error(detail ? `${r.status} ${detail}` : `${r.status}`);
+    }
     return r.json();
   }, [conn]);
 
@@ -152,7 +168,14 @@ export default function GrammarStudio() {
     setG(next);
     try { await window.storage.set(G_KEY, JSON.stringify(next)); } catch { /* ignore */ }
     if (conn.base) {
-      try { await api("/grammar", { method: "PUT", body: JSON.stringify(next) }); } catch { /* stays local */ }
+      // A rejected push must be visible. Silently keeping the edit locally is
+      // how you end up believing the device learned a word that it did not.
+      try {
+        await api("/grammar", { method: "PUT", body: JSON.stringify(next) });
+        setPushErr(null);
+      } catch (e) {
+        setPushErr(e.message);
+      }
     }
   }, [api, conn.base]);
 
@@ -233,6 +256,18 @@ export default function GrammarStudio() {
           </button>
         ))}
       </div>
+
+      {pushErr && (
+        <div className="mx-4 mt-3 border border-red-900 bg-red-950/40 rounded px-3 py-2 flex items-start justify-between gap-2">
+          <div className="text-[11px] text-red-400 leading-relaxed">
+            <div className="text-red-300">not saved to the server — this edit is local only</div>
+            {pushErr}
+          </div>
+          <button onClick={() => setPushErr(null)} className="text-red-700 hover:text-red-400 shrink-0">
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {tab === "queue" && (
         <div className="p-4 space-y-3">

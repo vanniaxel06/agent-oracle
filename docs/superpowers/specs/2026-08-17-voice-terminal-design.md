@@ -149,18 +149,31 @@ worst available option: it is slow, it can itself be misheard, and it adds
 nothing on identity that the original utterance did not already provide. Touch
 is strictly better at the job that step was actually doing.
 
-**The calibration constraint is real and shapes the UI.** `decisions.md` records
-that resistive touch on the wall units is uncalibrated, and that the whole screen
-is deliberately one hit target to sidestep it. A confirm button next to a cancel
-button is the single worst place for an uncalibrated panel to be off by a
-centimetre.
+**Confirm and cancel must not be equally easy to hit.** This is the reason the
+approval UI is a hold rather than two buttons, and it is worth stating precisely
+because the obvious reason is the weaker one.
 
-So confirmation must not depend on *where* the screen is touched. Use hold
-length, which is already house style for exactly this reason: any tap cancels, a
-deliberate hold confirms, with the footer counting the hold down from partway
-through so a silent wait does not read as a dead screen. Thumbs up and thumbs
-down as separate targets are the natural design and should be resisted until a
-capacitive panel is confirmed.
+The obvious reason is calibration. `decisions.md` records that resistive touch on
+the wall units is uncalibrated and that the whole screen is deliberately one hit
+target to sidestep it. That is real but it is a cost, not a blocker: a resistive
+panel is accurate to a few pixels once calibrated, and a standard routine stored
+in NVS beside the identity would solve it in about a hundred lines.
+
+The stronger reason survives a perfectly calibrated panel. A desk device gets
+brushed, bumped and reached past. If any stray contact can land on either target
+then accidental contact has even odds of confirming, and the thing it confirms is
+closing a position. A hold makes the safe outcome the default for every
+accidental touch and reserves the destructive one for deliberate intent.
+
+So confirmation does not depend on *where* the screen is touched. Any tap
+cancels, a deliberate hold confirms, with the footer counting down from partway
+through so a silent wait does not read as a dead screen. This is already house
+style, and `decisions.md` reaches it by the same argument: "5 seconds rather than
+a tap because wall units get brushed and wiped."
+
+Thumbs up and thumbs down as separate targets become defensible only once the
+panel is confirmed capacitive, and even then the asymmetry argument still applies
+to the destructive half.
 
 ## Relationship to the existing firmware
 
@@ -460,8 +473,8 @@ None of these block the build. All of them block calling it a product.
 
 ## Order of work
 
-1. ~~Land the six Voice Link files into the repo~~ done. Fix the
-   `confirmations` landmine below, which is still open
+1. ~~Land the six Voice Link files into the repo, fix the `confirmations`
+   landmine~~ done
 2. ~~Verify the speaker embedding under `onnxruntime-node`~~ done, see
    "Speaker verification, measured"
 3. Free-form fallthrough to Hermes, and the conversation-versus-failed-command
@@ -476,19 +489,13 @@ Steps 1 to 5 need no hardware.
 
 ## Known landmines
 
-**`matcher.js:70` will brick the server.** `buildGrammar` does
-`Object.entries(raw.confirmations)` with no guard, and `api.js:57` validates only
-`intents` and `slots` before writing to disk. The studio's `SEED` has no
-`confirmations` key, so "reset grammar to seed", or any alias saved while the
-studio is offline, PUTs a grammar that makes `buildGrammar` throw.
-
-The running server survives, because the assignment fails and the old grammar
-stays in memory, but `grammar.json` on disk is poisoned and the next restart dies
-at `server.js:21`. Recovery is `mv grammar.json.bak grammar.json`, since
-`api.js:58` writes the backup first.
-
-Fix both ends: default `raw.confirmations` to `{}` in the matcher, and require it
-in the API's validation.
+**~~`matcher.js:70` will brick the server.~~ Fixed.** The API now validates
+before touching disk, writes through a temp file, and restores the backup if the
+reload fails anyway. `validateGrammar` treats confirmations as a semantic rule
+rather than a shape check: any gated intent requires both `confirm` and `cancel`
+phrases, because defaulting the field to `{}` would have converted a loud crash
+into a silent one where gated intents can never be approved. Covered by
+`voice/check-grammar.js`.
 
 **The triage API writes grammar to disk with no rate limit.** Already noted in
 the Voice Link README. Bind to localhost and tunnel, or put it behind the

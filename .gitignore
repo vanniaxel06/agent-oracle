@@ -10,3 +10,5 @@ voice/misses.jsonl*
 voice/grammar.json.bak
 voice/verify/wav/
 voice/verify/*.onnx
+voice/grammar.json
+voice/grammar.json.tmp

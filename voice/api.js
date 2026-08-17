@@ -1,6 +1,7 @@
 import http from "http";
 import fs from "fs";
 import { listMisses, resolveMiss } from "./misses.js";
+import { validateGrammar } from "./matcher.js";
 
 const GRAMMAR = new URL("./grammar.json", import.meta.url).pathname;
 
@@ -54,10 +55,28 @@ export function startApi({ port = 8788, token, onGrammarChange } = {}) {
 
       if (req.method === "PUT" && url.pathname === "/grammar") {
         const next = await body(req);
-        if (!next.intents || !next.slots) return json(res, 400, { error: "bad grammar" });
+
+        // Validate before touching disk. Writing first and reloading afterwards
+        // is what let a bad PUT poison grammar.json: the reload threw, the 500
+        // looked like a transient failure, the running server carried on with
+        // the old grammar in memory, and the next restart died at startup.
+        const problems = validateGrammar(next);
+        if (problems.length) return json(res, 400, { error: "invalid grammar", problems });
+
         fs.copyFileSync(GRAMMAR, GRAMMAR + ".bak");
-        fs.writeFileSync(GRAMMAR, JSON.stringify(next, null, 2));
-        onGrammarChange?.();
+        const tmp = GRAMMAR + ".tmp";
+        fs.writeFileSync(tmp, JSON.stringify(next, null, 2));
+        fs.renameSync(tmp, GRAMMAR);
+
+        // Belt and braces: if the reload still fails, put the old file back
+        // rather than leaving disk in a state the server cannot boot from.
+        try {
+          onGrammarChange?.();
+        } catch (e) {
+          fs.copyFileSync(GRAMMAR + ".bak", GRAMMAR);
+          onGrammarChange?.();
+          return json(res, 500, { error: "grammar failed to load, rolled back", detail: e.message });
+        }
         return json(res, 200, { ok: true });
       }
 

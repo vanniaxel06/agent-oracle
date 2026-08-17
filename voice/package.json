@@ -1,0 +1,14 @@
+{
+  "name": "agent-oracle-voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Voice link server for Agent Oracle: ASR, grammar matching, gating and dispatch",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node check-grammar.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

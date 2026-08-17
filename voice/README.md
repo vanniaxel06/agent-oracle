@@ -1,17 +1,19 @@
 # Agent Oracle — Voice Link v0.1
 
-> **Landed as-is, not yet integrated.** These files were written in a separate
-> session and are committed unmodified, so that the diff which fixes them is
-> readable. They do not run yet: `grammar.json` and `package.json` were not part
-> of the handoff, and `PROTOCOL.md` and `sim.js` are referenced below but absent.
+> **Partially integrated.** These files were written in a separate session and
+> landed unmodified so the fixes read as their own diffs. `PROTOCOL.md` and
+> `sim.js` are referenced below but were never part of the handoff, so anything
+> depending on them does not work yet.
 >
 > The current design, including which parts of this README are superseded, is
 > [`../docs/superpowers/specs/2026-08-17-voice-terminal-design.md`](../docs/superpowers/specs/2026-08-17-voice-terminal-design.md).
 > Read that first. In particular the display is no longer "a status light only",
-> and free-form speech now has a defined path rather than only being rejected.
+> the keyboard that briefly appeared in the design is gone, and free-form speech
+> now has a defined path rather than only being rejected.
 >
-> Before running anything, fix the `confirmations` landmine at `matcher.js:70`.
-> It poisons `grammar.json` on disk and stops the server starting.
+> Start with `cp grammar.example.json grammar.json`. The live file is gitignored
+> because the studio rewrites it at runtime; the example is the tracked
+> reference. `npm run check` validates a grammar without starting anything.
 
 Voice-only control surface for the Round Table. ESP32-S3 puck streams audio to
 the VPS; display is a status light only.

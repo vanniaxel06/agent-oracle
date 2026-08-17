@@ -1,0 +1,57 @@
+{
+  "version": "0.1",
+  "min_score": 0.75,
+
+  "confirmations": {
+    "confirm": ["yes", "confirm", "do it", "go ahead", "approved"],
+    "cancel": ["no", "cancel", "stop", "abort", "never mind"]
+  },
+
+  "slots": {
+    "agent": {
+      "hermes": ["hermes", "her mess", "air mess"],
+      "vega": ["vega", "vegas", "veiga"],
+      "motoko": ["motoko", "moto ko", "mokoto"],
+      "prometheus": ["prometheus", "prometeus"]
+    },
+    "asset": {
+      "bitcoin": ["bitcoin", "bit coin", "btc"],
+      "ethereum": ["ethereum", "etherium", "eth"],
+      "stellar": ["stellar", "stella", "xlm"],
+      "sui": ["sui", "swee", "sooey"]
+    }
+  },
+
+  "intents": [
+    {
+      "id": "status",
+      "gated": false,
+      "handler": "hermes.status",
+      "patterns": ["status", "{agent} status", "how is {agent}", "check {agent}"]
+    },
+    {
+      "id": "pending",
+      "gated": false,
+      "handler": "hermes.pendingApprovals",
+      "patterns": ["what's pending", "anything waiting"]
+    },
+    {
+      "id": "positions",
+      "gated": false,
+      "handler": "vega.positions",
+      "patterns": ["open positions", "what are we holding"]
+    },
+    {
+      "id": "close_position",
+      "gated": true,
+      "handler": "vega.closePosition",
+      "patterns": ["close {asset}", "exit {asset}"]
+    },
+    {
+      "id": "pause_agent",
+      "gated": true,
+      "handler": "hermes.pauseAgent",
+      "patterns": ["pause {agent}", "halt {agent}"]
+    }
+  ]
+}
