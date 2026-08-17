@@ -25,7 +25,8 @@ Who it is for:
 - The accountant at his desk, mid-admin, who wants an answer rather than a
   dashboard
 - The small business owner doing the books, who will never open a terminal
-- Tayla, settled at her desk, who wants to speak to the thing and hear back
+- The hospitality operator settling at her desk after service, who wants to speak
+  to the thing and hear back rather than open another dashboard
 
 The common thread is not novelty. It is that for these people, typing and
 reading is the *expensive* path, and the alternative today is a chat window that
