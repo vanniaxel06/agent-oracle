@@ -23,6 +23,8 @@
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <Preferences.h>
+#include <Update.h>
+#include <mbedtls/sha256.h>
 
 #include "config.h"
 #include "root_ca.h"
@@ -46,8 +48,41 @@ static uint32_t last_poll_ms = 0;
 static uint32_t last_ok_ms = 0;
 static bool ever_connected = false;
 static uint32_t last_ota_check_ms = 0;
+static uint32_t poll_interval_ms = POLL_INTERVAL_MS;
 
 static uint32_t lv_last_tick = 0;
+
+// ── Group rotation ────────────────────────────────────────────────────────────
+// One key can name several agents ("vega,motoko"), and the server then returns
+// { screens: [...] } instead of a single screen. The device cycles them and
+// decides NOTHING: ordering, dwell time, whether to hold, and the group colour
+// are all resolved server-side. That is the same rule as everywhere else here —
+// the moment the device starts choosing what to show, a screen in someone
+// else's office stops being re-specifiable from a config file.
+//
+// Screens are copied out of the JSON into fixed buffers rather than kept as a
+// live JsonDocument, because rotation happens BETWEEN polls: the document is
+// long gone by the time the second screen is due. Bounded at the server's own
+// MAX_GROUP, so this costs ~1KB and cannot grow with the payload.
+static const uint8_t MAX_SCREENS = 4;  // must match MAX_GROUP server-side
+
+struct ScreenBuf {
+  char title[20];
+  char state[16];
+  char age[12];
+  uint32_t colour;
+  uint8_t rows;
+  char label[MAX_ROWS][20];
+  char value[MAX_ROWS][20];
+};
+
+static ScreenBuf screens[MAX_SCREENS];
+static uint8_t screen_count = 0;  // 0 = nothing polled yet, 1 = single, >1 = group
+static uint8_t screen_idx = 0;
+static uint32_t group_colour = COL_AMBER;
+static bool group_hold = false;
+static uint32_t dwell_ms = 30000;
+static uint32_t last_rotate_ms = 0;
 
 // ── Device identity ───────────────────────────────────────────────────────────
 // THE DEVICE KEY MUST NEVER LIVE IN THE FIRMWARE IMAGE.
@@ -271,13 +306,32 @@ static void selftest() {
   ui_pump(500);
 }
 
-static void set_colour(uint32_t colour) {
+// The dot and the LED carry the WORST state in the group, never whichever
+// screen happens to be up. A green light over a hidden red screen is the same
+// lie as a stale green tick, arrived at from a different direction.
+//
+// On a board with no RGB LED (the 4.3" S3) the dot IS the LED — it is the only
+// thing readable from across a room, so it must not be repurposed to describe
+// the current screen.
+static void set_group_colour(uint32_t colour) {
   lv_obj_set_style_bg_color(ui_dot, lv_color_hex(colour), 0);
-  lv_obj_set_style_text_color(ui_state, lv_color_hex(colour), 0);
 #ifdef BOARD_HAS_RGB_LED
   // Only 8 colours available; amber is red+green.
   smartdisplay_led_set_rgb(colour != COL_GREEN, colour != COL_RED, false);
 #endif
+}
+
+// The state word describes the screen you are actually looking at. Colouring it
+// with the group's worst state would print "LIVE" in red on a healthy agent.
+static void set_state_colour(uint32_t colour) {
+  lv_obj_set_style_text_color(ui_state, lv_color_hex(colour), 0);
+}
+
+// Both together — for a single-agent screen, and for anything the device says
+// on its own behalf, where there is no group and no distinction to draw.
+static void set_colour(uint32_t colour) {
+  set_group_colour(colour);
+  set_state_colour(colour);
 }
 
 static void set_rows(uint8_t used) {
@@ -301,6 +355,63 @@ static void show_local(const char *title, const char *state, const char *line, u
 // One factory so every outbound request verifies against the pinned root. If
 // this is ever loosened to setInsecure(), a spoofed feed can show a green tick
 // for a dead agent, which is worse than the screen being blank.
+// An unrecognised colour word is amber, never green. Do not invent confidence
+// the server did not report.
+static uint32_t colour_from(const char *name) {
+  if (!name) return COL_AMBER;
+  if (!strcmp(name, "green")) return COL_GREEN;
+  if (!strcmp(name, "red")) return COL_RED;
+  return COL_AMBER;
+}
+
+static void copy_field(char *dst, size_t n, const char *src) {
+  strncpy(dst, src ? src : "", n - 1);
+  dst[n - 1] = '\0';
+}
+
+// Copy one screen out of the JSON into a fixed buffer. Values arrive already
+// clipped server-side, but truncate here anyway rather than trusting a remote
+// length limit to stay what it is today.
+static void store_screen(JsonObject src, ScreenBuf &dst) {
+  copy_field(dst.title, sizeof(dst.title), src["title"] | "?");
+  copy_field(dst.state, sizeof(dst.state), src["state"] | "?");
+  copy_field(dst.age, sizeof(dst.age), src["age"] | "");
+  dst.colour = colour_from(src["color"] | "amber");
+
+  uint8_t i = 0;
+  for (JsonObject line : src["lines"].as<JsonArray>()) {
+    if (i >= MAX_ROWS) break;
+    copy_field(dst.label[i], sizeof(dst.label[i]), line["l"] | "");
+    copy_field(dst.value[i], sizeof(dst.value[i]), line["v"] | "");
+    i++;
+  }
+  dst.rows = i;
+}
+
+static void render_screen(const ScreenBuf &s) {
+  lv_label_set_text(ui_title, s.title);
+  lv_label_set_text(ui_state, s.state);
+  for (uint8_t i = 0; i < s.rows; i++) {
+    lv_label_set_text(ui_row_label[i], s.label[i]);
+    lv_label_set_text(ui_row_value[i], s.value[i]);
+  }
+  set_rows(s.rows);
+  set_state_colour(s.colour);
+
+  // ASCII only in labels. The Montserrat subsets built into lv_conf.h do not
+  // carry U+00B7, so a "·" separator renders as a tofu box on the panel.
+  //
+  // A rotating unit says which screen of how many. Without it, a screen that
+  // changes on its own looks like a fault rather than a rotation, and there is
+  // no way to tell "showing 1 of 2" from "the other agent vanished".
+  if (screen_count > 1)
+    lv_label_set_text_fmt(ui_foot, "beat %s ago  -  %d/%d  -  fw %s",
+                          s.age, (int)screen_idx + 1, (int)screen_count,
+                          FIRMWARE_VERSION);
+  else
+    lv_label_set_text_fmt(ui_foot, "beat %s ago  -  fw %s", s.age, FIRMWARE_VERSION);
+}
+
 static void secure_client(WiFiClientSecure &client) {
   client.setCACert(ROOT_CA_ISRG_X1);
   client.setTimeout(10);
@@ -342,34 +453,60 @@ static bool poll_status() {
     return false;
   }
 
-  const char *title = doc["title"] | "?";
-  const char *state = doc["state"] | "?";
-  const char *colour = doc["color"] | "amber";
-  const char *age = doc["age"] | "";
+  // TWO SHAPES, DETECTED NOT CONFIGURED. A single agent returns its screen
+  // fields at the top level, exactly as it always has. A group returns
+  // { screens: [...] } with ordering, hold and the group colour already
+  // resolved. Keying off the presence of "screens" means old firmware keeps
+  // working against the new server, and a device can be moved between a single
+  // key and a group key with no reflash — which is the whole point of the
+  // server owning the decisions.
+  if (doc["screens"].is<JsonArray>()) {
+    uint8_t n = 0;
+    for (JsonObject s : doc["screens"].as<JsonArray>()) {
+      if (n >= MAX_SCREENS) break;
+      store_screen(s, screens[n]);
+      n++;
+    }
+    if (!n) {
+      log_w("group payload with no screens");
+      return false;
+    }
+    screen_count = n;
+    group_colour = colour_from(doc["color"] | "amber");
+    group_hold = doc["hold"] | false;
 
-  lv_label_set_text(ui_title, title);
-  lv_label_set_text(ui_state, state);
+    uint32_t d = doc["dwell_s"].as<uint32_t>();
+    if (d < 5) d = 5;
+    if (d > 120) d = 120;
+    dwell_ms = d * 1000UL;
 
-  JsonArray lines = doc["lines"].as<JsonArray>();
-  uint8_t i = 0;
-  for (JsonObject line : lines) {
-    if (i >= MAX_ROWS) break;
-    lv_label_set_text(ui_row_label[i], line["l"] | "");
-    lv_label_set_text(ui_row_value[i], line["v"] | "");
-    i++;
+    // Hold parks on index 0, where the server has sorted the worst screen. Also
+    // reset if the group shrank under us, or the index now points past the end.
+    if (group_hold || screen_idx >= screen_count) screen_idx = 0;
+    last_rotate_ms = millis();
+  } else {
+    store_screen(doc.as<JsonObject>(), screens[0]);
+    screen_count = 1;
+    screen_idx = 0;
+    group_colour = screens[0].colour;
+    group_hold = false;
   }
-  set_rows(i);
 
   // Trust the server's colour verbatim — it owns the staleness rules for the
   // agent. The device only overrides when it can't reach the server at all.
-  uint32_t c = COL_AMBER;
-  if (!strcmp(colour, "green")) c = COL_GREEN;
-  else if (!strcmp(colour, "red")) c = COL_RED;
-  set_colour(c);
+  set_group_colour(group_colour);
+  render_screen(screens[screen_idx]);
 
-  // ASCII only in labels. The Montserrat subsets built into lv_conf.h do not
-  // carry U+00B7, so a "·" separator renders as a tofu box on the panel.
-  lv_label_set_text_fmt(ui_foot, "beat %s ago  -  fw %s", age, FIRMWARE_VERSION);
+  // Cadence is the server's call too. It already sends poll_s and the device
+  // used to ignore it, which meant changing how often a fleet polls needed a
+  // reflash of every unit. Clamped so a bad value cannot stop a unit polling
+  // altogether or turn it into a hot loop against the server.
+  uint32_t ps = doc["poll_s"].as<uint32_t>();
+  if (ps) {
+    if (ps < 10) ps = 10;
+    if (ps > 600) ps = 600;
+    poll_interval_ms = ps * 1000UL;
+  }
   return true;
 }
 
@@ -407,7 +544,7 @@ static void check_ota() {
   // inner scope exists purely so the manifest client is destroyed — with its TLS
   // context and parsed CA chain — before the download client is built. Do not
   // flatten it.
-  String version, bin;
+  String version, bin, expected_sha;
   bool allow_downgrade = false;
   {
     WiFiClientSecure client;
@@ -426,6 +563,7 @@ static void check_ota() {
 
     version = (const char *)(doc["version"] | "");
     bin = (const char *)(doc["url"] | "");
+    expected_sha = (const char *)(doc["sha256"] | "");
     allow_downgrade = doc["allow_downgrade"] | false;
   }
 
@@ -436,17 +574,126 @@ static void check_ota() {
     return;
   }
 
+  // A HASH IS REQUIRED, NOT PREFERRED. Without one there is no way to tell a
+  // complete binary from a truncated one, or the build you meant to publish
+  // from whatever else is sitting at that URL. TLS authenticates the server; it
+  // says nothing about whether the bytes are the build you tested.
+  //
+  // Refusing is deliberate. A manifest with no hash means OTA stops for that
+  // board until one is published — loudly, in the log, with the device still
+  // running fine. The alternative is flashing unverified images by default,
+  // which is the failure this whole project is a reaction to.
+  if (expected_sha.length() != 64) {
+    log_e("manifest for %s has no usable sha256 - REFUSING to update. "
+          "Republish it with scripts/release.sh.", BOARD_NAME);
+    return;
+  }
+
   log_i("OTA %s -> %s (free heap %u)", FIRMWARE_VERSION, version.c_str(),
         (unsigned)ESP.getFreeHeap());
   show_local("UPDATING", version.c_str(), "Do not unplug", COL_AMBER);
   ui_pump(400);  // land the frame before httpUpdate blocks for the download
 
+  // HAND-ROLLED DOWNLOAD, DELIBERATELY. httpUpdate.update() streams straight
+  // into flash and offers no hook to hash the bytes on the way past, so
+  // verifying the image means owning the loop. Everything below writes to the
+  // INACTIVE app slot (this is why min_spiffs.csv and its two slots matter) —
+  // the running firmware is never touched, and nothing boots until Update.end()
+  // flips the boot partition. A failure here means the update does not happen,
+  // never that the unit is left unbootable.
   WiFiClientSecure ota_client;
   secure_client(ota_client);
-  httpUpdate.rebootOnUpdate(true);
-  t_httpUpdate_return ret = httpUpdate.update(ota_client, bin);
-  if (ret == HTTP_UPDATE_FAILED)
-    log_e("OTA failed: %s", httpUpdate.getLastErrorString().c_str());
+  HTTPClient http;
+  http.setConnectTimeout(8000);
+  http.setTimeout(15000);
+  if (!http.begin(ota_client, bin)) {
+    log_e("OTA: cannot open %s", bin.c_str());
+    return;
+  }
+  if (http.GET() != HTTP_CODE_OK) {
+    log_e("OTA: binary fetch failed");
+    http.end();
+    return;
+  }
+
+  const int len = http.getSize();
+  if (!Update.begin(len > 0 ? (size_t)len : UPDATE_SIZE_UNKNOWN)) {
+    log_e("OTA: Update.begin failed: %s", Update.errorString());
+    http.end();
+    return;
+  }
+
+  mbedtls_sha256_context sha_ctx;
+  mbedtls_sha256_init(&sha_ctx);
+  mbedtls_sha256_starts(&sha_ctx, 0);  // 0 = SHA-256, not SHA-224
+
+  WiFiClient *stream = http.getStreamPtr();
+  uint8_t buf[1024];
+  size_t written = 0;
+  bool io_ok = true;
+  uint32_t last_data_ms = millis();
+
+  while (io_ok && (len < 0 || written < (size_t)len)) {
+    const size_t avail = stream->available();
+    if (!avail) {
+      // A stalled socket must not spin here forever. The device would sit on
+      // "UPDATING - do not unplug" indefinitely with no way to recover short of
+      // a power cycle, which on a wall unit is a site visit.
+      if (millis() - last_data_ms > 20000) {
+        log_e("OTA: stalled after %u bytes", (unsigned)written);
+        io_ok = false;
+        break;
+      }
+      if (!http.connected() && len < 0) break;  // clean end of a chunked body
+      delay(1);
+      continue;
+    }
+    last_data_ms = millis();
+    const int n = stream->readBytes(buf, avail > sizeof(buf) ? sizeof(buf) : avail);
+    if (n <= 0) continue;
+    mbedtls_sha256_update(&sha_ctx, buf, n);
+    if (Update.write(buf, n) != (size_t)n) {
+      log_e("OTA: flash write failed at %u: %s", (unsigned)written, Update.errorString());
+      io_ok = false;
+      break;
+    }
+    written += n;
+  }
+  http.end();
+
+  uint8_t digest[32];
+  mbedtls_sha256_finish(&sha_ctx, digest);
+  mbedtls_sha256_free(&sha_ctx);
+
+  char got[65];
+  for (uint8_t i = 0; i < 32; i++) snprintf(got + i * 2, 3, "%02x", digest[i]);
+
+  if (!io_ok || (len > 0 && written != (size_t)len)) {
+    log_e("OTA: incomplete download (%u of %d bytes)", (unsigned)written, len);
+    Update.abort();
+    show_local("UPDATE", "FAILED", "download cut short", COL_RED);
+    return;
+  }
+
+  // THE CHECK. A mismatch means the bytes are not the build that was published,
+  // whether from truncation, a bad upload or the wrong file at that URL. Abort
+  // discards the staged image; the unit carries on running what it has.
+  if (!expected_sha.equalsIgnoreCase(got)) {
+    log_e("OTA: sha256 MISMATCH - refusing. want %s got %s",
+          expected_sha.c_str(), got);
+    Update.abort();
+    show_local("UPDATE", "REJECTED", "checksum mismatch", COL_RED);
+    return;
+  }
+
+  if (!Update.end(true)) {
+    log_e("OTA: Update.end failed: %s", Update.errorString());
+    show_local("UPDATE", "FAILED", Update.errorString(), COL_RED);
+    return;
+  }
+
+  log_i("OTA: verified %s and staged %s - restarting", got, version.c_str());
+  ESP.restart();
 }
 #endif
 
@@ -589,7 +836,7 @@ void loop() {
     last_poll_ms = 0;  // force the poll below to fire this iteration
   }
 
-  if (now - last_poll_ms >= POLL_INTERVAL_MS || last_poll_ms == 0) {
+  if (now - last_poll_ms >= poll_interval_ms || last_poll_ms == 0) {
     last_poll_ms = now;
     if (poll_status()) {
       last_ok_ms = now;
@@ -597,10 +844,26 @@ void loop() {
     }
   }
 
+  // Rotate. The device only counts here — which screens exist, what order they
+  // are in, how long each sits, and whether to rotate at all are all decided by
+  // the server. `hold` is how a red screen stops the carousel: parking on the
+  // thing that needs attention is the entire reason page navigation was
+  // rejected, so it must not become "rotate anyway, but slower".
+  if (screen_count > 1 && !group_hold && now - last_rotate_ms >= dwell_ms) {
+    last_rotate_ms = now;
+    screen_idx = (screen_idx + 1) % screen_count;
+    render_screen(screens[screen_idx]);
+  }
+
   // THE DEVICE-SIDE RULE. Past the window we stop rendering whatever the last
   // successful poll returned, because we no longer know if it is true. This must
   // never be relaxed into "keep showing the last good state".
   if (now - last_ok_ms > OFFLINE_AFTER_MS) {
+    // Stop the carousel. Rotating through screens we can no longer vouch for is
+    // the stale-green failure with extra steps — it looks MORE alive than a
+    // frozen screen, not less.
+    screen_count = 0;
+
     // Re-render only when the displayed minute changes; this branch is reached
     // on every loop iteration and rewriting the labels (and the LED) at 200Hz
     // buys nothing.

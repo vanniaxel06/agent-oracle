@@ -170,6 +170,56 @@ whose whole point is not needing one.
 says "keep holding for setup..." from 1.5s, because a silent long hold feels like
 a dead screen and gets abandoned.
 
+## Rotation is not a menu
+
+"One action, no menu" rejected page navigation. Cycling several agents on one
+unit sounds like the same thing readmitted, and it isn't — the distinction is
+who chooses:
+
+- A **menu** parks on whatever page a human last selected. It can hide a red
+  screen indefinitely, and nobody knows it is hiding one.
+- **Rotation** is automatic, bounded, and **stops on red**. The server sorts
+  red screens first and sets `hold`; the device parks on the worst one and
+  stays there. Nothing can be hidden by inattention.
+
+The safeguard that makes this true is the dot and the LED carrying the group's
+**worst** state rather than the visible screen's. A green light while a red
+screen is queued behind it would rebuild the exact failure the menu ban exists
+to prevent, from the other direction.
+
+The device counts and nothing else. Which agents, what order, how long each
+sits, and whether to rotate at all are server-side, so a unit moves between a
+single agent and a group with no reflash.
+
+**Staleness stays per agent inside a group** — this was got wrong first time.
+See the server's `buildScreen`: a device row carries one `stale_after_s`, which
+is right for one agent and wrong for several, because a five-minute window
+applied to a four-hourly agent marks it permanently dead. Permanently dead sets
+`hold`, and `hold` stops the rotation, so the feature looked broken while the
+agents were fine.
+
+## OTA refuses to flash what it cannot verify
+
+The manifest must carry a `sha256`. No hash, no update — logged loudly, with
+the unit still running.
+
+**Why refusing rather than warning:** TLS authenticates the *server*. It says
+nothing about whether the bytes at that URL are the build that was tested. A
+truncated upload, a half-written file, or the wrong binary at the right path
+all pass TLS perfectly.
+
+`httpUpdate.update()` streams straight into flash with no hook to hash on the
+way past, so the download loop is hand-rolled to hash and write in the same
+pass. This sounds riskier than it is: every byte goes to the **inactive** app
+slot, and nothing boots until `Update.end()` flips the boot partition. A
+mismatch, a stall or a short read calls `Update.abort()` and the running
+firmware is untouched. The failure mode is "the update doesn't happen", never
+"the unit is unbootable" — which is also why `min_spiffs.csv` and its two app
+slots are load-bearing rather than a build-size workaround.
+
+The stall timeout is not decoration. Without it a dead socket leaves the screen
+on "UPDATING - do not unplug" forever, and on a wall unit that is a site visit.
+
 ## Every line must be actionable
 
 Five rows is the entire budget. A line that is merely interesting occupies space
