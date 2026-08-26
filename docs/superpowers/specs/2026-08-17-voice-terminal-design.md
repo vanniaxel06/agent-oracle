@@ -40,9 +40,15 @@ This device exists to develop new ways to identify, command, prompt and gate by
 voice. Any feature that does not advance one of those four is out of scope, no
 matter how good it would be in isolation.
 
-It also needs no hardware beyond the ESP32-S3 already ordered, which is the
-second half of the argument. A design that requires new parts to be interesting
-has lost the plot.
+It also needs no hardware beyond the ESP32-S3 already ordered and a ~AUD 6 I2S
+microphone, which is the second half of the argument. A design that requires
+new parts to be interesting has lost the plot.
+
+*(Originally "no hardware beyond the ESP32-S3 already ordered". The board
+arrived on 26 Aug 2026 with no microphone — see "On decision 7". The argument
+survives, because AUD 6 on a pigtail is not the same category as the AUD 110
+T-Deck this section rejected, but the sentence was wrong and is corrected
+rather than quietly softened.)*
 
 ## Rejected: the keyboard
 
@@ -82,8 +88,61 @@ a firmware port because Xiaozhi has no board target for it. Parked, not lost.
 | 4 | Free-form speech is answered, never executed | Ask anything; only whitelisted intents dispatch |
 | 5 | Destructive intents re-authenticate per action, by nonce challenge | Replay of a recording cannot approve an action |
 | 6 | No Xiaozhi | See "Firmware" |
-| 7 | Hardware is the ESP32-S3 already ordered | No new parts are required for the design to be interesting |
+| 7 | ~~Hardware is the ESP32-S3 already ordered~~ **REVISED 26 Aug 2026** — the S3 plus a ~AUD 6 I2S microphone | The board has no microphone. See "On decision 7" |
 | 8 | Gated intents are read back on screen and confirmed by touch | Touch settles *what*; the voice challenge settles *who*. They are not alternatives |
+
+### On decision 7 (revised 26 Aug 2026)
+
+**The ESP32-4827S043C has no microphone.** Confirmed by eye on the board, not
+from a listing: no MEMS capsule anywhere on the PCB, no audio silkscreen, and
+no `SPEAK` connector either — unlike the CYD, which at least has speaker out.
+Every header is accounted for and none carries audio:
+
+| Header | Pins | Label |
+|---|---|---|
+| P2 | IO11, IO12, IO13 | SPI |
+| P3 | IO17, IO18, IO19, IO20 | UART1 / USB |
+| P4 | GND, 3.3V, IO17, IO18 | — |
+
+The vendored board definition agrees: it declares no audio at all, while the
+same author's CYD definition does declare `BOARD_HAS_SPEAK`. That asymmetry was
+visible before the board was ordered and nobody read it.
+
+**How this was missed.** It was written down. The "Unverified" section of this
+document said *"the exact S3 board's microphone and audio-out path — confirm
+against the schematic for the board actually ordered."* The board was then
+chosen on screen size, touch type and price, and that item was never closed. A
+risk register only works if something forces it to be read at the moment the
+decision it guards is being made. This one was written, filed, and walked past.
+
+**What it costs: about AUD 6 and a delay.** An INMP441 I2S MEMS module wires to
+the existing headers with no soldering to the board:
+
+| Mic pin | Goes to | Header |
+|---|---|---|
+| VDD | 3.3V | P4 |
+| GND | GND | P4 |
+| SCK | IO11 | P2 |
+| WS | IO12 | P2 |
+| SD | IO13 | P2 |
+| L/R | GND | P4 |
+
+Tie `L/R` rather than leaving it floating. **Keep off IO19 and IO20** — the
+GT911 touch controller has them, which is also why this board's USB-C runs
+through a CH340 instead of native USB.
+
+**What it does not cost: the design.** Decision 3 stands unchanged — voice is
+still the identity factor, and a MEMS capsule on a pigtail captures audio the
+same as one soldered to the PCB. The "Audio input and range" section had
+already concluded the puck's own microphone was not the recommended input path;
+its top two options were a satellite device and a phone as the capture surface,
+neither of which needs a mic on this board at all. The plan routed around this
+before the gap was known.
+
+**What is still unmeasured.** A microphone makes the real test possible; it does
+not pre-empt the result. Speaker verification has only been measured on
+synthetic near-field audio, and "Unverified" is explicit that a MEMS capsule at
+arm's length in a room is a different problem. That number is still ahead.
 
 ### On decision 3
 
@@ -432,13 +491,19 @@ Carried deliberately. Each can change the plan.
   different problem, and the number that matters is the false-accept rate at the
   operating point, not the headline EER. See "Speaker verification, measured"
   for what has and has not been established.
-- **The exact S3 board's microphone and audio-out path.** Confirm against the
-  schematic for the board actually ordered before writing the capture code.
-- **Whether that board has a touch panel, and whether it is resistive or
-  capacitive.** Decision 8 depends on touch existing at all, and the hold-to-
-  confirm interaction exists to survive an uncalibrated resistive panel. A
-  capacitive panel would allow separate confirm and cancel targets and is worth
-  knowing before the approval UI is built.
+- ~~**The exact S3 board's microphone and audio-out path.**~~ **CLOSED 26 Aug
+  2026: there is neither.** No microphone and no speaker output on the
+  ESP32-4827S043C. Capture needs an external I2S mic; playback needs an
+  external amp or a different output path, and that half is still unplanned.
+  See "On decision 7". This item was open for nine days across the decision it
+  was written to guard, which is the actual lesson here.
+- ~~**Whether that board has a touch panel, and whether it is resistive or
+  capacitive.**~~ **CLOSED 26 Aug 2026: capacitive, GT911, on IO19/IO20.**
+  Decision 8 holds, and the hold-to-confirm interaction no longer has to carry
+  an uncalibrated resistive panel — separate confirm and cancel targets are
+  available for the approval UI. Note the pin cost: the GT911 occupies the
+  ESP32-S3's native USB pins, which is why the board flashes over a CH340 and
+  why an external mic must avoid IO19/IO20.
 - **Wake mechanism.** Wake word, button, or always-listening with a local VAD.
   Each has a different privacy story, which matters more for the accountant than
   for the coder.
