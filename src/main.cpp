@@ -248,8 +248,29 @@ static void build_ui() {
   lv_obj_add_event_cb(scr, screen_event_cb, LV_EVENT_ALL, NULL);
 
   const lv_coord_t h = lv_display_get_vertical_resolution(lv_disp_get_default());
+  const lv_coord_t w = lv_display_get_horizontal_resolution(lv_disp_get_default());
   const lv_coord_t row_h = 28;
   const lv_coord_t top = 52;
+
+  // VALUE COLUMN IS A FIXED WIDTH, and this is not cosmetic tidying.
+  //
+  // An auto-sized right-aligned label moves its own left edge when the string
+  // gets shorter. The strip it vacates falls between DMA flush bands, so part
+  // of the PREVIOUS value survives on the panel until something else redraws
+  // that area - seen on the Vega unit as "06:00 BTC" reading clipped, healing,
+  // and coming back every time the value changed length.
+  //
+  // Pinning the width means the invalidated rectangle always covers both the
+  // old and the new string, so there is nothing left behind to heal.
+  //
+  // DO NOT fix that symptom by raising SMARTDISPLAY_DMA_BUFFER_SIZE on the CYD.
+  // That board has ~48KB left for a TLS handshake needing ~45KB, and starving
+  // it surfaces as "connection refused" - which reads as the server being down.
+  // This costs no RAM at all.
+  //
+  // Sized to hold the server's maximum 16-character value, so long strings
+  // render exactly as they did before; only the shrinking case changes.
+  const lv_coord_t value_w = (w * 55) / 100;
 
   // Glance state: a colour dot beside the agent name. The text below it is for
   // when the dot isn't green.
@@ -279,6 +300,12 @@ static void build_ui() {
     }
     ui_row_label[i] = make_label(&lv_font_montserrat_20, COL_DIM, LV_ALIGN_TOP_LEFT, 10, y);
     ui_row_value[i] = make_label(&lv_font_montserrat_20, COL_FG, LV_ALIGN_TOP_RIGHT, -10, y);
+    // Fixed box, text right-aligned inside it — see value_w above. CLIP rather
+    // than the default WRAP: an over-long value must never become a second line
+    // and shunt every row below it down the screen.
+    lv_obj_set_width(ui_row_value[i], value_w);
+    lv_label_set_long_mode(ui_row_value[i], LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_align(ui_row_value[i], LV_TEXT_ALIGN_RIGHT, 0);
   }
 
   ui_foot = make_label(&lv_font_montserrat_14, COL_DIM, LV_ALIGN_BOTTOM_LEFT, 10, -6);
@@ -397,6 +424,23 @@ static void render_screen(const ScreenBuf &s) {
   }
   set_rows(s.rows);
   set_state_colour(s.colour);
+
+  // NO FULL-SCREEN INVALIDATE HERE - it was tried and reverted.
+  //
+  // Forcing lv_obj_invalidate(lv_screen_active()) on every render sounds like a
+  // clean way to avoid partial-flush artifacts. On the CYD it makes them worse:
+  // a full frame at a 16KB DMA buffer is ~10 flush bands instead of the two or
+  // three a changed row needs, and a visible horizontal line appeared across a
+  // row within minutes of trying it. More bands means more band boundaries.
+  //
+  // Fewer, smaller redraws are the right direction on this board. The fixed
+  // value-column width in build_ui() is the targeted fix for stale remnants.
+  //
+  // NOTE FOR ANYONE READING A PHOTO OF THIS SCREEN: labels are left-aligned and
+  // values right-aligned across a wide gap, so the eye pairs each value with
+  // the row BELOW its own. That is an optical illusion, not a bug, and it has
+  // now been "discovered" twice. Check the serial geometry log before believing
+  // the columns are misaligned.
 
   // ASCII only in labels. The Montserrat subsets built into lv_conf.h do not
   // carry U+00B7, so a "·" separator renders as a tofu box on the panel.
