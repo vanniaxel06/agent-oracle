@@ -2,6 +2,31 @@
 
 Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 
+## 0.5.0
+
+- **One key can show several agents.** A device whose `agent` column names more
+  than one ("crons,motoko") gets `{ screens: [...] }` and the firmware cycles
+  them. The device still decides nothing: order, dwell time, whether to hold and
+  the group colour are all resolved server-side, so a unit can be moved between
+  a single agent and a group with no reflash. The footer shows `1/2` so a screen
+  that changes on its own reads as a rotation rather than a fault.
+- **A red screen stops the rotation.** The server sorts red first and sets
+  `hold`; the device parks there. Cycling past the thing that needs attention is
+  the failure page navigation was rejected for.
+- **The dot and the LED show the group's worst state, not the visible screen.**
+  A green light over a hidden red screen is the same lie as a stale green tick.
+  The state word still describes the screen you are actually looking at.
+- **OTA verifies sha256 before flashing, and refuses without one.** The download
+  loop is now hand-rolled because `httpUpdate.update()` offers no hook to hash
+  the bytes on the way past. Everything is written to the inactive app slot, so
+  a mismatch, a truncated download or a stall discards the staged image and the
+  unit carries on running what it has. A manifest with no hash means OTA stops
+  for that board, loudly, rather than flashing something unverified.
+- Rotation stops when the device goes OFFLINE. Cycling through screens we can no
+  longer vouch for looks more alive than a frozen one, not less.
+- `poll_s` from the server is now honoured (clamped 10-600s). It was already
+  being sent and ignored, so changing a fleet's poll rate meant reflashing it.
+
 ## Unreleased
 
 - Added the `esp32-4827S043C` environment (ESP32-S3, 4.3" 480x272, GT911
