@@ -239,6 +239,136 @@ The flasher page and merged image were deleted rather than shipped with a
 warning. A page whose main control fails on the hardware the project targets is
 worse than no page; the finding is worth more than the button.
 
+## The CYD's RAM workarounds must not leak onto a PSRAM board
+
+`platformio.ini`'s shared `[env]` used to carry the CYD's LVGL/DMA buffer
+overrides directly. Adding the ESP32-S3 board (`esp32-4827S043C`, 8MB PSRAM)
+as a fourth env under that same `[env]` would have force-fed it the CYD's
+tenth-screen buffer and 16KB DMA scratch — both sized to dodge internal-RAM
+contention that doesn't exist on a board with PSRAM and no TLS/display
+allocation fight. The board's own JSON already sizes a full-frame PSRAM buffer
+correctly; the shared override would have silently shrunk it.
+
+Moved the two buffer flags into a `[cyd_buffers]` section, pulled in only by
+the three CYD envs via `${cyd_buffers.build_flags}`. The S3 env inherits
+nothing extra.
+
+**Rule: a hardware workaround lives with the hardware that needs it, not in
+the section every environment inherits from.**
+
+## Rotation reads the panel's own dimensions, not a fixed assumption
+
+`lv_display_set_rotation()` was `LV_DISPLAY_ROTATION_90` unconditionally,
+correct only because every board so far was a portrait CYD panel rotated to
+landscape. The `esp32-4827S043C` is natively 480x272 landscape; the same call
+would have turned a correct screen sideways.
+
+Now it compares the board's own `DISPLAY_WIDTH`/`DISPLAY_HEIGHT` — portrait
+(H>W) rotates 90 degrees, landscape (W>H) does not — so a third board shape
+doesn't need a third code path, just correct dimensions in its board JSON.
+
+## On an RGB panel the pixel clock IS the refresh rate **(learned the hard way)**
+
+The `esp32-4827S043C` flickered visibly straight out of the box. The board
+definition's 8MHz pixel clock, against this panel's blanking porches, is a
+50.5Hz refresh:
+
+```
+h_total = 480 + 4 + 43 + 8 = 535
+v_total = 272 + 4 + 12 + 8 = 296
+8000000 / (535 * 296) = 50.5 Hz
+```
+
+An RGB parallel panel has no controller memory. Unlike the CYD's SPI ILI9341 —
+which holds a frame and only receives changes — this panel is scanned out of
+the framebuffer continuously, so the pixel clock is not a speed setting, it is
+the refresh rate.
+
+Measured on hardware:
+
+| PCLK | Refresh | Observed |
+|---|---|---|
+| 8MHz (board default) | 50.5 Hz | obvious flicker, **even across the whole panel** |
+| 12MHz | 75.8 Hz | best observed — faint residual only |
+| 16MHz | 101 Hz | flicker returns, but **only at the right edge** |
+
+**The 16MHz result is the valuable one.** Going up cured the even flicker and
+bought a localised one, which is two different faults, not one fault
+improving. Even flicker is refresh rate. Right-edge flicker is the DMA falling
+behind toward the end of each scanline — under-run — and raising the clock
+makes it worse. Settled at 12MHz, which sits just under the ceiling.
+
+**Why this matters more than it looks:** 50Hz is worst in peripheral vision,
+and peripheral vision is the entire delivery mechanism for this product. A
+display you have to look at directly to notice is a dashboard, and the reason
+this project exists is that dashboards require remembering to check them. A
+faint flicker also reads as "cheap" in a client's office in a way a spec sheet
+never captures.
+
+Two failure modes, one knob, opposite directions — do not confuse them:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Flicker **even across the panel**, worse in peripheral vision | refresh rate too low | raise `PCLK_HZ` |
+| Flicker **at the right edge**, tearing, rolling bands, torn text | DMA under-running PSRAM | lower `PCLK_HZ` |
+
+**Ask where on the screen it is before touching the clock.** Described out
+loud both are "it's flickering", and the fixes point in opposite directions —
+half an hour was spent turning the knob the wrong way for want of that one
+question.
+
+**The residual is not solved, only traded down.** The real fix is bounce
+buffers: a small internal-RAM staging buffer the LCD peripheral fills from
+PSRAM in chunks, which is what ESP-IDF provides for exactly this problem.
+`esp32-smartdisplay` does not expose `bounce_buffer_size_px` — the ST7262
+driver sets `fb_in_psram` and nothing else — so using them means patching or
+forking the library. That is the correct next step if the residual flicker
+ever matters enough, and it is a real fix rather than a trade.
+
+Overridden in `platformio.ini`, not in the vendored board JSON, so the
+provenance of the pinned definition stays intact and the reason travels with
+the override.
+
+**Unrelated and not fixable in firmware:** faint dark banding along rows of
+text, appearing and disappearing with viewing angle, is the TN panel itself.
+TN's weakness is vertical viewing angle. Check it against the `selftest()`
+colour floods — if it shows on a solid colour with no text, it is the glass.
+
+## Identify a board by asking it, not by recognising it **(learned the hard way)**
+
+The `esp32-4827S043C` flashes over a **CH340**, not native USB — despite being
+an ESP32-S3, and despite its own board definition carrying Espressif
+native-USB hwids (`0x303A/0x1001`) and `use_1200bps_touch`. Its USB-C port
+enumerates as `USB-SERIAL CH340`, VID `1A86:7523`, and `pio run -t upload`
+works through it with no button combo at all.
+
+**What happened:** the spec sheet said native USB, so that went into
+`platformio.ini` as fact before anyone had plugged a board in. Then the board
+arrived, a CH340 port appeared, and it was dismissed from memory as "that's
+the *other* boards' chip" — even though the port list had been empty three
+commands earlier and this port appeared the instant the new board got power.
+That produced an hour of chasing bootloader combos, UART pigtails and a
+USB-TTL adapter that was never needed. The user checked the port themselves
+and was right.
+
+Both errors were the same error: **recognising instead of checking.** This is
+the identical failure already recorded above under "Don't infer board revision
+from the hardware", one board family later.
+
+The check costs ten seconds and is not ambiguous:
+
+```bash
+python ~/.platformio/packages/tool-esptoolpy/esptool.py --port COM4 chip_id
+```
+
+It prints the actual silicon (`Chip is ESP32-S3 (QFN56)`, PSRAM, MAC). A VID,
+a chip name and a spec sheet are all guesses about which board is on the other
+end of a cable. `chip_id` is an answer.
+
+**Corollary: a serial port that appears when you power a board belongs to that
+board.** Read the tool output you already have before reasoning from memory
+about what a chip "usually" is.
+
 ## Known limitations
 
 Honest list, so nobody discovers these the hard way twice.
@@ -255,3 +385,9 @@ Honest list, so nobody discovers these the hard way twice.
   binary.
 - **Resistive touch is uncalibrated.** The whole screen is one hit target, which
   sidesteps it. Anything finer needs per-unit calibration.
+- **`esp32-4827S043C` needs a USB-A-to-C cable, not C-to-C** (learned the
+  hard way). A C-to-C cable delivered no power at all — not a download-mode
+  problem, the board never came on. USB-A has no CC negotiation and just
+  outputs 5V; this board's USB-C receptacle appears not to advertise whatever
+  a C-to-C host wants to see before it will source power. Once powered it
+  flashes normally over the same port — no BOOT/RST combo needed, see below.

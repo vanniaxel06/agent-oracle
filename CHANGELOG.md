@@ -4,6 +4,26 @@ Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 
 ## Unreleased
 
+- Added the `esp32-4827S043C` environment (ESP32-S3, 4.3" 480x272, GT911
+  capacitive touch, 8MB PSRAM). Two things fixed while wiring it in, not just
+  new config: rotation was hardcoded to 90 degrees for the CYD's portrait
+  panel and now reads the board's own width/height instead, since this panel
+  is natively landscape; and the CYD's RAM-workaround buffer sizes were in the
+  shared `[env]` block and would have silently overridden this board's own
+  PSRAM-sized buffers, so they moved into a CYD-only `[cyd_buffers]` section.
+  Both verified on hardware: the unit reports `480x272 after rotation` and a
+  full-frame 130560px buffer with 264KB heap free.
+- Pixel clock on `esp32-4827S043C` raised from the board definition's 8MHz to
+  12MHz. On an RGB panel the pixel clock IS the refresh rate, and 8MHz works
+  out to 50.5Hz — visibly flickering. 12MHz gives 75.8Hz. 16MHz was tried and
+  reverted: it removed the even flicker but introduced right-edge flicker,
+  which is PSRAM DMA under-run, so 12MHz sits just under the ceiling. A faint
+  residual remains; the real fix is bounce buffers, which the display library
+  does not expose. See docs/decisions.md.
+- Corrected: this board flashes over a **CH340**, not native USB, despite its
+  board definition's Espressif hwids. Documented from a spec sheet before a
+  board existed to check, which cost an hour of chasing a flashing problem
+  that was never there. See docs/decisions.md.
 - Removed the browser flasher. ESP Web Tools could not enter download mode on
   this board via its CH340, even with BOOT held through the reset. See
   docs/decisions.md for what was ruled out.
