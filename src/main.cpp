@@ -485,15 +485,25 @@ void setup() {
 
   smartdisplay_init();
   lv_last_tick = millis();
-  // Landscape, 320x240. The panel is natively 240x320 portrait, so this is a
-  // software rotation — which is fine here BECAUSE the layout is alignment-
-  // based rather than absolutely positioned.
+  // Landscape, always. Which rotation gets there depends on the panel's native
+  // orientation, so this reads it from the board's own DISPLAY_WIDTH/HEIGHT
+  // rather than assuming portrait:
+  //   - CYD (240x320, H>W): natively portrait, needs a 90 degree software
+  //     rotation to reach landscape. Fine here BECAUSE the layout is
+  //     alignment-based rather than absolutely positioned.
+  //   - esp32-4827S043C (480x272, W>H): natively landscape already. Rotating
+  //     it would turn a correct screen sideways.
   //
-  // Do not remove this on the evidence of a photo taken with the board held
-  // portrait: the text runs vertically in that orientation and looks broken,
-  // but it is rendering correctly. Rotation was pulled once on exactly that
-  // misreading and it turned a working screen into a mangled one.
+  // Do not "fix" this back to an unconditional 90 degree rotation on the
+  // evidence of a photo of the CYD taken portrait: the text runs vertically in
+  // that orientation and looks broken, but it is rendering correctly. Rotation
+  // was pulled once on exactly that misreading and it turned a working screen
+  // into a mangled one.
+#if DISPLAY_HEIGHT > DISPLAY_WIDTH
   lv_display_set_rotation(lv_disp_get_default(), LV_DISPLAY_ROTATION_90);
+#else
+  lv_display_set_rotation(lv_disp_get_default(), LV_DISPLAY_ROTATION_0);
+#endif
   smartdisplay_lcd_set_backlight(1.0f);
   log_i("display: %dx%d after rotation",
         (int)lv_display_get_horizontal_resolution(lv_disp_get_default()),

@@ -1,5 +1,9 @@
 # Board revisions — which environment to flash
 
+This page is specific to the CYD (`esp32-2432S028R` family) — three revisions
+sold under one listing. The `esp32-4827S043C` (ESP32-S3, 4.3") has no such
+ambiguity; see the board-family comment at the top of `platformio.ini`.
+
 The ESP32-2432S028R ships in at least three revisions that are **not**
 interchangeable. Sellers list them all as "ESP32-2432S028R" and the AliExpress
 listing text is frequently wrong about which one is in the box. This is a known

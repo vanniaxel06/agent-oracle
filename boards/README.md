@@ -11,5 +11,8 @@ sitting in someone's office. It also removes the `--recursive` clone footgun.
 
 `platformio.ini` points here via `boards_dir = boards`.
 
-Fetched 2 Aug 2026. See [../docs/board-revisions.md](../docs/board-revisions.md)
-for how to refresh one and why you should diff it first.
+Fetched 2 Aug 2026: `esp32-2432S028R`, `esp32-2432S028Rv2`, `esp32-2432S028Rv3`.
+Fetched 26 Aug 2026: `esp32-4827S043C`.
+
+See [../docs/board-revisions.md](../docs/board-revisions.md) for how to refresh
+one and why you should diff it first.
