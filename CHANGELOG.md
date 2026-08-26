@@ -27,6 +27,52 @@ Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 - `poll_s` from the server is now honoured (clamped 10-600s). It was already
   being sent and ignored, so changing a fleet's poll rate meant reflashing it.
 
+## 0.5.3
+
+- **Static labels drawn wrong at boot stayed wrong forever.** On the first
+  render the labels have not been laid out yet — the serial log showed
+  `Last job` at the correct position with **width zero** — so `lv_label_set_text`
+  invalidated a zero-width area and the glyphs went somewhere the flush never
+  covered. Because these labels are static, setting them to the string they
+  already hold invalidates nothing, so the row was never redrawn again. Now
+  `lv_obj_update_layout()` forces real sizes before the rows are explicitly
+  invalidated. Row 0 was always the exception because `show_local()` gives it
+  text during boot, so it alone was already sized.
+- **Tapping the screen could never have fixed it**, which was itself the clue:
+  the poll re-rendered and correctly decided nothing had changed.
+- **Not a full-screen invalidate.** That was tried and put a visible band line
+  across a row on this panel. Ten small correct areas beat one big one.
+- **Per-row render logging kept in.** It prints the string the device holds and
+  the coordinates LVGL assigned, and it identified the zero-width render in one
+  flash after three fixes guessed from photographs missed it entirely. The noise
+  is worth it — see docs/decisions.md.
+
+### STILL OPEN after 0.5.3 — do not assume this is fixed
+
+A label on the Hermes unit **still intermittently loses part of its text**, on a
+build that now re-invalidates and redraws every row every 30 seconds. That rules
+out the boot-time zero-width case as the cause of the recurrence: individual
+redraws are failing, not just the first one.
+
+What is established, and worth not re-deriving:
+
+- **LVGL's model is correct.** The per-row log shows the right strings at the
+  right coordinates with sensible widths, while the panel disagrees. So it is
+  not content, not memory and not layout — it is downstream, in the flush.
+- **It is intermittent**, so any fix "confirmed" by looking at the screen for a
+  few minutes is not confirmed. Three were, tonight, and all three were wrong.
+- Untried next lever is the LVGL buffer geometry — at a tenth of a screen the
+  buffer is 24 rows and a row of text at y108–131 straddles a band boundary.
+  Raising it means a larger contiguous internal-RAM allocation on a board where
+  a quarter-screen (38KB) is documented to fail outright, so it is a real
+  trade, not a free knob.
+
+The starting point is a log line from the moment it fails, not another theory.
+
+## 0.5.2
+
+- Diagnostic build only, not published. Added the per-row render log.
+
 ## 0.5.1
 
 - **Value labels are a fixed width with the text right-aligned inside.** An
