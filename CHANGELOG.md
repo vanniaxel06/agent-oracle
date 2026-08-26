@@ -27,6 +27,26 @@ Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 - `poll_s` from the server is now honoured (clamped 10-600s). It was already
   being sent and ignored, so changing a fleet's poll rate meant reflashing it.
 
+## 0.5.1
+
+- **Value labels are a fixed width with the text right-aligned inside.** An
+  auto-sized right-aligned label moves its own left edge when the string gets
+  shorter, and the strip it vacates fell between DMA flush bands — so part of
+  the previous value survived on the panel. Seen repeatedly on the Vega unit as
+  `06:00 BTC` reading clipped, healing on the next redraw, and returning.
+  Pinning the width means the invalidated rectangle always covers both the old
+  and the new string. Verified clean on hardware.
+- **Do not fix that symptom by raising `SMARTDISPLAY_DMA_BUFFER_SIZE` on the
+  CYD.** That board has ~48KB left for a TLS handshake needing ~45KB, and
+  starving it surfaces as `connection refused`, which reads as the server being
+  down. The fixed-width fix costs no RAM at all.
+- **Tried and reverted: a full-screen invalidate on every render.** It sounds
+  like a clean way to avoid partial-flush artifacts and does the opposite here —
+  a full frame at a 16KB buffer is ~10 flush bands rather than the two or three
+  a changed row needs, and a visible horizontal line appeared across a row
+  within minutes. On this board, fewer and smaller redraws is the right
+  direction. Recorded so it is not re-attempted as an obvious idea.
+
 ## Unreleased
 
 - Added the `esp32-4827S043C` environment (ESP32-S3, 4.3" 480x272, GT911
