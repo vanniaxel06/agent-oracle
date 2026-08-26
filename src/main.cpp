@@ -425,6 +425,52 @@ static void render_screen(const ScreenBuf &s) {
   set_rows(s.rows);
   set_state_colour(s.colour);
 
+  // SIZE THE LABELS BEFORE REDRAWING THEM, THEN REDRAW THE ROWS EXPLICITLY.
+  //
+  // Diagnosed from the per-row log below, after three fixes guessed from
+  // photographs missed it. On the FIRST render after boot the labels have not
+  // been laid out yet - the log showed "Last job" at the right position with
+  // WIDTH ZERO - so lv_label_set_text invalidated a zero-width area and the
+  // glyphs were drawn into a region the flush never covered.
+  //
+  // It then never repairs itself, which is the part that matters: these labels
+  // are STATIC. Setting a label to the string it already holds invalidates
+  // nothing, so a row drawn wrong once at boot stays wrong forever. That is why
+  // tapping to force a poll never fixed it - the poll re-rendered, and the
+  // re-render correctly decided there was nothing to redraw.
+  //
+  // Row 0 always looked fine because show_local() gives it text during boot, so
+  // it alone was already sized by the time the first real render ran.
+  //
+  // lv_obj_update_layout() forces the real sizes now; invalidating the ten row
+  // objects then redraws them over their correct areas. Deliberately NOT
+  // lv_obj_invalidate(lv_screen_active()) - a full-frame redraw was tried and
+  // put a visible band line across a row on this panel. Small correct areas,
+  // not one big one.
+  lv_obj_update_layout(lv_screen_active());
+  for (uint8_t i = 0; i < MAX_ROWS; i++) {
+    lv_obj_invalidate(ui_row_label[i]);
+    lv_obj_invalidate(ui_row_value[i]);
+  }
+
+  // WHAT THE DEVICE THINKS IT IS DRAWING, per row.
+  //
+  // Added because a label rendered as a garbled mark, in the wrong place, and
+  // three separate fixes were attempted from photographs of the panel without
+  // anyone knowing whether the string or the geometry was wrong. Those are
+  // different bugs with nothing in common.
+  //
+  // Prints the string held in the buffer AND the coordinates LVGL actually
+  // assigned. If the string is right and x is wrong, it is layout. If the
+  // string is wrong, it is memory. Reading the glass cannot tell them apart.
+  for (uint8_t i = 0; i < s.rows; i++) {
+    log_i("row%u L=\"%s\"(x%d y%d w%d) V=\"%s\"(x%d y%d w%d)", i,
+          s.label[i], (int)lv_obj_get_x(ui_row_label[i]),
+          (int)lv_obj_get_y(ui_row_label[i]), (int)lv_obj_get_width(ui_row_label[i]),
+          s.value[i], (int)lv_obj_get_x(ui_row_value[i]),
+          (int)lv_obj_get_y(ui_row_value[i]), (int)lv_obj_get_width(ui_row_value[i]));
+  }
+
   // NO FULL-SCREEN INVALIDATE HERE - it was tried and reverted.
   //
   // Forcing lv_obj_invalidate(lv_screen_active()) on every render sounds like a

@@ -120,6 +120,60 @@ Practical consequences, both in `platformio.ini`:
 
 **Only one TLS client alive at a time.** This board cannot afford two.
 
+## Log what the device thinks it is drawing **(learned the hard way)**
+
+`render_screen()` prints, per row, the string held in the buffer **and** the
+coordinates LVGL assigned to that object.
+
+**What happened:** a label rendered as a garbled mark in the wrong place. Three
+fixes were attempted from photographs of the panel — a fixed-width value
+column, a full-screen invalidate, and a revert of the same — and all three
+missed, because every one of them guessed at the mechanism. Two changes went in
+together at one point, a new artifact appeared, and it could not be attributed
+to either.
+
+The log answered it on the first flash:
+
+```
+row2 L="Last job"(x10 y108 w0)    <- first render, WIDTH ZERO
+row2 L="Last job"(x10 y108 w80)   <- 30s later, correct
+```
+
+The string was right, the position was right, and the width was zero — so the
+invalidated area was zero and the glyphs were drawn where the flush never went.
+Nothing in a photograph could have distinguished that from a font problem, a
+memory problem, or a layout problem, and each has a different fix.
+
+**The rule: when the only instrument is looking at the glass, you have no
+instrument.** Print the model — the string and the geometry — and compare it
+against the panel. If they agree, the bug is downstream in the flush path. If
+they disagree, it is upstream in content or layout. That one distinction is
+worth more than any amount of staring.
+
+The corollary that cost the most time tonight: **change one thing per flash.**
+Two simultaneous changes plus a visual-only check is not an experiment.
+
+## A static label is drawn once and never again **(learned the hard way)**
+
+Row labels come from the layout and do not change between polls. Setting a
+label to the string it already holds invalidates nothing, so **a row drawn
+wrong at boot stays wrong for the life of the unit.**
+
+This is why the touch-to-refresh gesture never fixed it: the poll re-rendered,
+and the re-render correctly concluded there was nothing to redraw. A gesture
+that looks like "redraw the screen" does no such thing.
+
+`render_screen()` therefore calls `lv_obj_update_layout()` and then invalidates
+the row objects explicitly, every render. It is a few microseconds against a
+class of fault that is otherwise permanent and invisible to every recovery path
+the device has.
+
+**Do not replace this with `lv_obj_invalidate(lv_screen_active())`.** A
+full-frame redraw was tried and put a visible band line across a row — at a
+16KB DMA buffer a full frame is ~10 flush bands rather than the two or three a
+changed row needs, and every band boundary is a chance to see one. Ten small
+correct areas beat one big one on this panel.
+
 ## Diagnose a display with colour, never with text **(learned the hard way)**
 
 `selftest()` floods the panel red, green, blue for 1.5s each before drawing
