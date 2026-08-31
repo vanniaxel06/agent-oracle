@@ -519,6 +519,22 @@ static bool poll_status() {
   String url = String("https://") + status_host + "/status/" + device_key;
   if (!http.begin(client, url)) return false;
 
+  // Tell the server what this unit is actually running. Without it the only
+  // evidence an OTA landed is an nginx log line showing a .bin download, and
+  // those cannot be attributed to a unit — every request arrives from 127.0.0.1
+  // because nginx sits behind sslh. Fine for two on a desk, useless for twenty
+  // in client offices, where the question is "did every unit take the release,
+  // and is any one stuck on old firmware".
+  //
+  // HEADERS, not query params: the poll URL is cached and logged, and adding a
+  // param changes the cache key for no benefit. This rides on the poll that was
+  // already happening, so it costs nothing extra.
+  //
+  // BOARD_NAME resolves per PlatformIO env, so the fleet view distinguishes the
+  // board revisions this file warns are not interchangeable.
+  http.addHeader("X-Firmware-Version", FIRMWARE_VERSION);
+  http.addHeader("X-Board", BOARD_NAME);
+
   // Heap before the handshake. A TLS connect needs roughly 45KB here, and when
   // it cannot get it the error is "connection refused" — which points at the
   // network when the fault is entirely local. Log the number so the next person
