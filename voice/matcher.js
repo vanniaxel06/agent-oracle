@@ -1,5 +1,9 @@
 import fs from "fs";
 
+// Floor of the failed-command band, used when a grammar does not set one.
+// A first cut, not a measurement — see classifyTurn.
+const DEFAULT_NEAR_SCORE = 0.45;
+
 const norm = (s) =>
   s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -65,6 +69,23 @@ export function validateGrammar(raw) {
     problems.push("slots must be an object");
   if (typeof raw.min_score !== "number") problems.push("min_score must be a number");
 
+  // near_score is the FLOOR of the failed-command band. Below it, a non-match is
+  // conversation; between it and min_score, a misheard command.
+  if (raw.near_score !== undefined) {
+    if (typeof raw.near_score !== "number") {
+      problems.push("near_score must be a number");
+    } else if (typeof raw.min_score === "number" && raw.near_score >= raw.min_score) {
+      // At or above min_score the band is empty, so every non-match falls to
+      // conversation and misheard commands silently become chat — the exact
+      // failure this split exists to prevent. Fail at load, not in the room.
+      problems.push(
+        `near_score (${raw.near_score}) must be BELOW min_score (${raw.min_score}); ` +
+        `otherwise the failed-command band is empty and every misheard command ` +
+        `is treated as conversation`
+      );
+    }
+  }
+
   const conf = raw.confirmations;
   if (conf !== undefined && (typeof conf !== "object" || conf === null || Array.isArray(conf)))
     problems.push("confirmations must be an object of kind -> phrases");
@@ -107,7 +128,17 @@ export function buildGrammar(path = "./grammar.json") {
   for (const [kind, phrases] of Object.entries(raw.confirmations ?? {})) {
     for (const p of phrases) confirmations.push({ kind, text: norm(p) });
   }
-  return { minScore: raw.min_score, candidates, confirmations };
+  return {
+    minScore: raw.min_score,
+    // First cut, and deliberately a guess: the spec says this needs the miss
+    // queue's real data to tune, and that tuning is the queue's whole purpose.
+    // 0.45 against a 0.75 min_score is wide enough that a genuinely mangled
+    // command lands in the band, and high enough that a question sharing one
+    // incidental word with an intent does not.
+    nearScore: typeof raw.near_score === "number" ? raw.near_score : DEFAULT_NEAR_SCORE,
+    candidates,
+    confirmations,
+  };
 }
 
 const STOP = new Set([
@@ -167,4 +198,47 @@ export function matchConfirmation(transcript, grammar) {
   const top = best(transcript, grammar.confirmations);
   if (!top || top.score < grammar.minScore) return { ok: false };
   return { ok: true, kind: top.kind, score: Number(top.score.toFixed(3)) };
+}
+
+/**
+ * Which of the three turn types is this?
+ *
+ * THE PROBLEM: a mangled "close stellar" and a genuine question both arrive as
+ * a non-match, and they need opposite handling. Treat a failed command as
+ * conversation and it silently becomes a chat message — the user believes
+ * nothing happened, when in fact it failed for a reason they cannot see. Treat
+ * questions as failed commands and the triage queue fills with questions.
+ *
+ * Before this existed there was no split at all: server.js recorded EVERY
+ * non-match as a miss and rejected it, so every genuine question was already
+ * being handled as a failed command.
+ *
+ * THE HEURISTIC, per the spec's first cut — a band, not a boolean:
+ *   score >= minScore                    command
+ *   nearScore <= score < minScore        failed_command  -> miss queue
+ *   score <  nearScore                   conversation    -> forward to Hermes
+ *   no candidate shared a content word   conversation
+ *
+ * A band rather than "any near match at all" because `best()` only skips
+ * candidates with ZERO content-word overlap. One incidental shared word — an
+ * asset or agent name inside an ordinary question — is enough to produce a
+ * near match, and without a floor every such question would be filed as a
+ * misheard command.
+ *
+ * This is a heuristic and it is expected to be wrong at the edges. It is
+ * tunable from one number, and the miss queue is what supplies the data to
+ * tune it. Do not treat the default as measured.
+ */
+export function classifyTurn(transcript, grammar) {
+  const m = match(transcript, grammar);
+  if (m.ok) return { type: "command", ...m };
+
+  // Nothing command-shaped was said: no candidate shared even one content word.
+  if (!m.near) {
+    return { type: "conversation", reason: "no_near_match", score: m.score, near: null };
+  }
+  if (m.score >= grammar.nearScore) {
+    return { type: "failed_command", reason: "near_miss", score: m.score, near: m.near };
+  }
+  return { type: "conversation", reason: "below_floor", score: m.score, near: m.near };
 }

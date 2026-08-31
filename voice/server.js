@@ -5,7 +5,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import crypto from "crypto";
-import { buildGrammar, match, matchConfirmation } from "./matcher.js";
+import { buildGrammar, match, matchConfirmation, classifyTurn } from "./matcher.js";
 import { recordMiss } from "./misses.js";
 import { startApi } from "./api.js";
 
@@ -174,10 +174,28 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
-    const m = match(transcript, grammar);
+    const m = classifyTurn(transcript, grammar);
     logEvent({ device, transcript, phase: "intent", result: m });
 
-    if (!m.ok) {
+    // A non-match used to mean one thing here: record a miss and reject. That
+    // filed EVERY genuine question as a failed command, which is the exact
+    // failure the turn-type split exists to prevent — and it was running on all
+    // of them, not at the edges.
+    if (m.type === "conversation") {
+      // Deliberately does NOT touch the miss queue. The queue's value is that
+      // it holds real misheard commands to tune the floor against; questions in
+      // it destroy that.
+      //
+      // Forwarding to Hermes is the intended destination and does not exist
+      // yet. Until it does, say so plainly rather than staying silent — a
+      // silent non-answer is indistinguishable from the device ignoring you.
+      send("reject", { reason: "conversation" });
+      await speak("That sounded like a question rather than a command. I can't answer those yet.");
+      state("green");
+      return;
+    }
+
+    if (m.type === "failed_command") {
       recordMiss({ device, transcript, phase: "intent", score: m.score, near: m.near });
       send("reject", { reason: "no_match" });
       await speak("I didn't catch a known command.");
