@@ -2,6 +2,24 @@
 
 Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 
+## 0.5.5
+
+- **No code changes. This release exists to prove the OTA path works.**
+
+  0.5.4 fixed the manifest URL and was carried to all three units by cable, so
+  every unit can now *fetch* a manifest. None of them had yet *taken* an update
+  over the air, because each was already running exactly what its manifest
+  advertised. Fetching and flashing are different halves and only the first had
+  been demonstrated.
+
+  A version-string bump with an identical tree is deliberate: if the update
+  fails, the cause cannot be a code change. It isolates the download, the sha256
+  check, the write to the inactive slot and the reboot.
+
+  If this lands on its own, OTA is working for the first time since the
+  per-board manifest was introduced.
+
+
 ## 0.5.4
 
 - **OTA has never worked, on any unit, since the per-board manifest landed.**
