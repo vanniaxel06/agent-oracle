@@ -2,6 +2,39 @@
 
 Reasoning behind these changes is in [docs/decisions.md](docs/decisions.md).
 
+## 0.5.4
+
+- **OTA has never worked, on any unit, since the per-board manifest landed.**
+  `BOARD_NAME` was set in the base `[env]` section as `${this.board}`, but
+  `${this.*}` interpolates against the section it is written in and `[env]` has
+  no `board` key — that only exists in the concrete environments. So every build
+  baked in the literal string `None`, every unit asked for
+  `/firmware/manifest-None.json`, and every request 404'd.
+
+  Measured before the fix: 73 such requests in the retained nginx logs, one per
+  unit per hour, still firing. Zero successful manifest fetches. Every version
+  difference across the fleet was simply whichever build was last carried over
+  by USB.
+
+  **The failure was invisible by design.** A failed manifest fetch is supposed to
+  be non-fatal so that OTA trouble never stops a screen from displaying, which is
+  correct, and it meant a fleet-wide dead update path looked exactly like a
+  healthy one for weeks.
+
+  `pio project config` reports the resolved value and would have shown `None` at
+  any point. Check it after touching build flags; the compiler cannot.
+
+- **This build must be flashed over USB once per unit.** The broken value is
+  compiled into every binary in the field, so no unit can be told about the fix
+  over the air. After one cable flash each, OTA works from then on.
+
+- **Firmware version and board now reach the server for the first time.** The
+  reporting code landed earlier but has never been in a published build, which is
+  why `status_devices.fw_version` was null for every live unit and held `0.4.0`
+  only on a retired key. Until now the only way to know what a unit was running
+  was to read it off the screen.
+
+
 ## 0.5.0
 
 - **One key can show several agents.** A device whose `agent` column names more
