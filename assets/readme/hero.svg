@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="hero-t hero-d">
+  <title id="hero-t">Agent Oracle</title>
+  <desc id="hero-d">ESP32 displays that show whether an AI agent is actually alive. Two walnut-cased screens: one green and reading OK, one red and reading NO HEARTBEAT.</desc>
+  <defs>
+    <linearGradient id="walnut" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#76543b"/>
+      <stop offset="1" stop-color="#4a3221"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="460" rx="26" fill="#0b0c0d"/>
+  <rect x="0.5" y="0.5" width="1199" height="459" rx="25.5" fill="none" stroke="#2b2d31"/>
+
+  <g id="title-block">
+    <text x="64" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">esp32 firmware  /  reference server included</text>
+    <text x="60" y="186" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="-2.5" fill="#ece8df">Agent Oracle</text>
+    <text x="64" y="246" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="32" fill="#ece8df">ESP32 displays that show whether</text>
+    <text x="64" y="288" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="32" fill="#ece8df">an AI agent is actually alive.</text>
+    <text x="64" y="346" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">polls GET /status/{key} every 30 s</text>
+    <text x="64" y="376" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">never green from an old beat</text>
+  </g>
+  <g id="heartbeat" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-width="3">
+    <path d="M64 420 L78 420 L86 398 L96 438 L104 420 L128 420 L142 420 L150 398 L160 438 L168 420 L192 420 L206 420 L214 398 L224 438 L232 420 L256 420 L270 420 L278 398 L288 438 L296 420 L320 420 L334 420 L342 398 L352 438 L360 420 L384 420" stroke="#22C55E" stroke-opacity="0.85"/>
+    <path d="M384 420 L 600 420" stroke="#EF4444"/>
+    <circle cx="600" cy="420" r="6" fill="#EF4444" stroke="none"/>
+  </g>
+  <g id="units">
+<g transform="translate(660 38) rotate(-2 153.6 119.2)">
+  <rect x="7" y="12" width="307.2" height="238.4" rx="12" fill="#000" fill-opacity="0.38"/>
+  <clipPath id="a-clip"><rect width="307.2" height="238.4" rx="12"/></clipPath>
+  <rect width="307.2" height="238.4" rx="12" fill="url(#walnut)"/>
+  <g clip-path="url(#a-clip)"><path d="M-10 14 C 90 6, 180 22, 360 12" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 40 C 70 34, 200 48, 360 38" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 76 C 110 70, 230 84, 360 74" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 118 C 60 112, 190 126, 360 116" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 150 C 120 144, 220 158, 360 148" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 196 C 90 190, 210 204, 360 194" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 232 C 100 226, 240 240, 360 230" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 262 C 80 256, 200 270, 360 260" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/></g>
+  <rect x="12" y="12" width="283.2" height="214.4" rx="5" fill="#1f130b"/>
+  <g transform="translate(16 16) scale(0.86)">
+<rect width="320" height="240" rx="3" fill="#000"/>
+<circle cx="17" cy="23" r="7" fill="#22C55E"/>
+<text x="32" y="32" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" fill="#EEEEEE">BUILDS</text>
+<text x="310" y="30" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#22C55E">OK</text>
+<text x="10" y="71" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Branch</text>
+<text x="310" y="71" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">main</text>
+<text x="10" y="99" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Last run</text>
+<text x="310" y="99" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">14:02 ok</text>
+<text x="10" y="127" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Failures</text>
+<text x="310" y="127" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">0</text>
+<text x="10" y="231" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#8A8A8A">beat 12s ago  -  fw 0.5.5</text>
+
+  </g>
+  <rect width="307.2" height="238.4" rx="12" fill="none" stroke="#fff" stroke-opacity="0.07"/>
+</g>
+<g transform="translate(826 184) rotate(2 153.6 119.2)">
+  <rect x="7" y="12" width="307.2" height="238.4" rx="12" fill="#000" fill-opacity="0.38"/>
+  <clipPath id="b-clip"><rect width="307.2" height="238.4" rx="12"/></clipPath>
+  <rect width="307.2" height="238.4" rx="12" fill="url(#walnut)"/>
+  <g clip-path="url(#b-clip)"><path d="M-10 14 C 90 6, 180 22, 360 12" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 40 C 70 34, 200 48, 360 38" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 76 C 110 70, 230 84, 360 74" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 118 C 60 112, 190 126, 360 116" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 150 C 120 144, 220 158, 360 148" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 196 C 90 190, 210 204, 360 194" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 232 C 100 226, 240 240, 360 230" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/>
+<path d="M-10 262 C 80 256, 200 270, 360 260" fill="none" stroke="#a87a55" stroke-opacity="0.16" stroke-width="1.4"/></g>
+  <rect x="12" y="12" width="283.2" height="214.4" rx="5" fill="#1f130b"/>
+  <g transform="translate(16 16) scale(0.86)">
+<rect width="320" height="240" rx="3" fill="#000"/>
+<circle cx="17" cy="23" r="7" fill="#EF4444"/>
+<text x="32" y="32" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" fill="#EEEEEE">BUILDS</text>
+<text x="310" y="30" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EF4444">NO HEARTBEAT</text>
+<text x="10" y="71" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Last beat</text>
+<text x="310" y="71" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">2h ago</text>
+<text x="10" y="99" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Branch</text>
+<text x="310" y="99" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">main</text>
+<text x="10" y="127" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Last run</text>
+<text x="310" y="127" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">14:02 ok</text>
+<text x="10" y="155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" fill="#8A8A8A">Failures</text>
+<text x="310" y="155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" text-anchor="end" fill="#EEEEEE">0</text>
+<text x="10" y="231" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#8A8A8A">beat 2h ago  -  fw 0.5.5</text>
+
+  </g>
+  <rect width="307.2" height="238.4" rx="12" fill="none" stroke="#fff" stroke-opacity="0.07"/>
+</g>
+  </g>
+</svg>

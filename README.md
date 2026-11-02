@@ -1,6 +1,6 @@
-# Agent Oracle — firmware
-
-ESP32 displays that show whether an AI agent is actually alive.
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Agent Oracle: ESP32 displays that show whether an AI agent is actually alive. Two walnut-cased screens, one green and reading OK, one red and reading NO HEARTBEAT.">
+</p>
 
 This repo is the **renderer**. It polls a URL and draws whatever comes back, so
 it needs a server that speaks the contract in
@@ -29,11 +29,19 @@ no formatting logic, no thresholds and no agent-specific knowledge in this
 firmware. Changing what a screen says is a one-file edit on the server, with no
 rebuild, no OTA and no physical access.
 
+<p align="center">
+  <img src="./assets/readme/payload-to-screen.svg" width="100%" alt="A trimmed status payload with title, state, color, three label and value lines and an age, next to the panel that draws it. Numbers pair each field with where it lands: title top left, state and colour on the state word, lines as rows, age in the footer.">
+</p>
+
 **Except one thing.** The server cannot tell you it is unreachable. If the device
 cannot complete a poll for `OFFLINE_AFTER_MS` (2 minutes) it stops showing the
 last payload and declares OFFLINE. A screen quietly displaying two-hour-old "all
 good" is the exact failure this product exists to prevent, so that judgement is
 device-side and must never be relaxed into "keep showing the last known state".
+
+<p align="center">
+  <img src="./assets/readme/two-clocks.svg" width="100%" alt="Two timelines. The server shows the real state until a source's stale window passes, then NO HEARTBEAT in red. The device polls every 30 seconds and shows OFFLINE in red after 2 minutes without a completed poll. A source never seen reads NO DATA in red, and an unrecognised state word reads amber.">
+</p>
 
 **One screen can show several agents.** A device whose `agent` column names more
 than one (`crons,motoko`) receives a list and cycles it. Order, dwell time,
