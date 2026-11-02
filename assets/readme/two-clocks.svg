@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="clocks-t clocks-d">
+  <title id="clocks-t">Two clocks decide when a screen goes red</title>
+  <desc id="clocks-d">Two timelines. On the server, a screen reads the real state until the source's stale window passes, then it shows NO HEARTBEAT in red. On the device, polls happen every 30 seconds, and after 2 minutes without a completed poll the screen shows OFFLINE in red. A source never seen shows NO DATA in red and an unrecognised state word shows amber.</desc>
+  <defs>
+    <linearGradient id="walnut" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#76543b"/>
+      <stop offset="1" stop-color="#4a3221"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="500" rx="26" fill="#0b0c0d"/>
+  <rect x="0.5" y="0.5" width="1199" height="499" rx="25.5" fill="none" stroke="#2b2d31"/>
+
+  <g id="server-clock">
+<text x="64" y="78" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">the server decides</text>
+<text x="64" y="114" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#ece8df">Is the agent</text>
+<text x="64" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#ece8df">still beating?</text>
+<clipPath id="bar-70"><rect x="440" y="106" width="696" height="18" rx="9"/></clipPath>
+<g clip-path="url(#bar-70)"><rect x="440" y="106" width="390" height="18" fill="#22C55E"/><rect x="830" y="106" width="306" height="18" fill="#EF4444"/></g>
+<line x1="830" y1="94" x2="830" y2="136" stroke="#ece8df" stroke-width="2.5"/>
+<circle cx="440" cy="115" r="11" fill="#0b0c0d" stroke="#22C55E" stroke-width="4"/>
+<text x="440" y="84" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#ece8df">BUILDS  OK</text>
+<text x="1136" y="84" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" text-anchor="end" fill="#ece8df">BUILDS  NO HEARTBEAT</text>
+<text x="830" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" text-anchor="middle" fill="#ece8df">stale_after_s, set per source</text>
+<text x="440" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">last beat</text>
+  </g>
+  <line x1="64" y1="256" x2="1136" y2="256" stroke="#2b2d31"/>
+  <g id="device-clock">
+<text x="64" y="298" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">the device decides</text>
+<text x="64" y="334" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#ece8df">Can I still reach</text>
+<text x="64" y="368" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#ece8df">the server?</text>
+<clipPath id="bar-290"><rect x="440" y="326" width="696" height="18" rx="9"/></clipPath>
+<g clip-path="url(#bar-290)"><rect x="440" y="326" width="557" height="18" fill="#22C55E"/><rect x="997" y="326" width="139" height="18" fill="#EF4444"/></g>
+<line x1="997" y1="314" x2="997" y2="356" stroke="#ece8df" stroke-width="2.5"/>
+<circle cx="440" cy="335" r="11" fill="#0b0c0d" stroke="#22C55E" stroke-width="4"/>
+<text x="440" y="304" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#ece8df">BUILDS  OK</text>
+<text x="1136" y="304" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" text-anchor="end" fill="#ece8df">OFFLINE  NO SERVER</text>
+<text x="1136" y="384" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" text-anchor="end" fill="#ece8df">2 min, no completed poll</text>
+<line x1="579" y1="352" x2="579" y2="364" stroke="#8f8b84" stroke-width="2"/>
+<line x1="718" y1="352" x2="718" y2="364" stroke="#8f8b84" stroke-width="2"/>
+<line x1="858" y1="352" x2="858" y2="364" stroke="#8f8b84" stroke-width="2"/>
+<text x="575" y="384" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">polls every 30 s</text>
+  </g>
+  <text x="64" y="466" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#8f8b84">never seen: NO DATA, red.     unrecognised state word: amber.</text>
+</svg>
